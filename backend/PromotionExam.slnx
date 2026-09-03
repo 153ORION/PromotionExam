@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="PromotionExam.Application/PromotionExam.Application.csproj" />
+  <Project Path="PromotionExam.Domain/PromotionExam.Domain.csproj" />
+  <Project Path="PromotionExam.Infrastructure/PromotionExam.Infrastructure.csproj" />
+  <Project Path="PromotionExam.WebApi/PromotionExam.WebApi.csproj" />
+</Solution>
