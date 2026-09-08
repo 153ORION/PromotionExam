@@ -1090,7 +1090,7 @@ namespace PromotionExam.Infrastructure.Services
 
         private string GetModelName()
         {
-            return _configuration["Gemini:Model"] ?? "gemini-2.5-flash";
+            return _configuration["Gemini:Model"] ?? "gemini-3.6-flash";
         }
 
         private async Task<string?> GetGeminiApiKeyAsync()

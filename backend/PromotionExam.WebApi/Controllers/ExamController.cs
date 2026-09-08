@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using PromotionExam.Domain.Entities;
 using PromotionExam.Infrastructure.Data;
@@ -75,25 +77,68 @@ namespace PromotionExam.WebApi.Controllers
             if (reg.IsExamEnd == true)
                 return BadRequest(new { message = "You have already completed and submitted this examination." });
 
-            if (reg.IsAttand != true)
+            if (reg.IsAttand != true || reg.ExamStart == null)
             {
-                var duration = reg.Batch?.ExamDuration ?? 60;
-                reg.IsAttand = true;
-                reg.ExamStart = DateTime.UtcNow;
-                reg.ExamEnd = DateTime.UtcNow.AddMinutes(duration);
-                await _context.SaveChangesAsync();
+                try
+                {
+                    // Execute stored procedure SP_APP_EXAM_START to pick questions and initialize exam
+                    await _context.Database.OpenConnectionAsync();
+                    try
+                    {
+                        using var cmd = _context.Database.GetDbConnection().CreateCommand();
+                        cmd.CommandText = "dbo.SP_APP_EXAM_START";
+                        cmd.CommandType = CommandType.StoredProcedure;
 
-                var user = await _context.SysUserRegistrations.FindAsync(reg.HRRecordId);
-                var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
-                await _activityService.LogAsync(
-                    reg.HRRecordId,
-                    user?.LoginId ?? reg.HRRecordId.ToString(),
-                    user?.Name ?? "Examinee",
-                    "Examinee",
-                    "EXAM",
-                    "START_EXAM",
-                    $"Candidate '{user?.Name}' started examination '{reg.Batch?.ExamName}' (Duration: {duration} mins).",
-                    ip);
+                        var pExamineeId = cmd.CreateParameter();
+                        pExamineeId.ParameterName = "@ExamineeId";
+                        pExamineeId.Value = examineeId;
+                        cmd.Parameters.Add(pExamineeId);
+
+                        var pAction = cmd.CreateParameter();
+                        pAction.ParameterName = "@Action";
+                        pAction.Value = "Q";
+                        cmd.Parameters.Add(pAction);
+
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        if (await reader.ReadAsync())
+                        {
+                            var statusMessage = reader["statusMessage"]?.ToString();
+                            if (!string.IsNullOrEmpty(statusMessage) &&
+                                statusMessage.Contains("Not enough question", StringComparison.OrdinalIgnoreCase))
+                            {
+                                return BadRequest(new { message = statusMessage });
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        await _context.Database.CloseConnectionAsync();
+                    }
+
+                    // Reload the updated ExamRegistration entity populated by the stored procedure
+                    await _context.Entry(reg).ReloadAsync();
+                    if (reg.BatchId > 0)
+                    {
+                        await _context.Entry(reg).Reference(r => r.Batch).LoadAsync();
+                    }
+
+                    var duration = reg.Batch?.ExamDuration ?? 60;
+                    var user = await _context.SysUserRegistrations.FindAsync(reg.HRRecordId);
+                    var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                    await _activityService.LogAsync(
+                        reg.HRRecordId,
+                        user?.LoginId ?? reg.HRRecordId.ToString(),
+                        user?.Name ?? "Examinee",
+                        "Examinee",
+                        "EXAM",
+                        "START_EXAM",
+                        $"Candidate '{user?.Name}' started examination '{reg.Batch?.ExamName}' (Duration: {duration} mins).",
+                        ip);
+                }
+                catch (Exception ex)
+                {
+                    return StatusCode(500, new { message = "Failed to start examination: " + ex.Message });
+                }
             }
 
             return Ok(new

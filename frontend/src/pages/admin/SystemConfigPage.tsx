@@ -492,7 +492,7 @@ export const SystemConfigPage: React.FC = () => {
                         Google Gemini API Key
                       </label>
                       <p className="text-xs text-indigo-900/80 mt-1 leading-relaxed">
-                        Powers the AI marking engine: rubric standard answer drafting, multi-dimensional scoring rubric generation, and automated candidate evaluation (Default Model: <code className="bg-indigo-100/80 text-indigo-800 px-1 py-0.5 rounded font-mono text-[11px]">gemini-2.5-flash</code>).
+                        Powers the AI marking engine: rubric standard answer drafting, multi-dimensional scoring rubric generation, and automated candidate evaluation (Default Model: <code className="bg-indigo-100/80 text-indigo-800 px-1 py-0.5 rounded font-mono text-[11px]">gemini-3.6-flash</code>).
                       </p>
                     </div>
                     <div className="flex items-center gap-2">

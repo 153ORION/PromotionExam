@@ -384,9 +384,7 @@ END
 IF COL_LENGTH(N'[dbo].[Sys_CompanyConfiguration]', 'GeminiApiKey') IS NOT NULL
    AND COL_LENGTH(N'[dbo].[Sys_CompanyConfiguration]', 'OpenAiApiKey') IS NOT NULL
 BEGIN
-    UPDATE [dbo].[Sys_CompanyConfiguration]
-    SET [GeminiApiKey] = [OpenAiApiKey]
-    WHERE [GeminiApiKey] IS NULL AND [OpenAiApiKey] IS NOT NULL;
+    EXEC(N'UPDATE [dbo].[Sys_CompanyConfiguration] SET [GeminiApiKey] = [OpenAiApiKey] WHERE [GeminiApiKey] IS NULL AND [OpenAiApiKey] IS NOT NULL;');
 END
 ");
         }

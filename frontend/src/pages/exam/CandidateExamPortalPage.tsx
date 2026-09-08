@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '@/services/api';
 import { useSystemConfig } from '@/context/SystemConfigContext';
@@ -26,35 +26,35 @@ export const CandidateExamPortalPage: React.FC = () => {
 
   const timerRef = useRef<any>(null);
 
-  useEffect(() => {
-    const fetchExamPaper = async () => {
-      try {
-        const res = await api.get(`/exam/paper/${registrationId}`);
-        setExamData(res.data);
-        setRemainingSeconds(res.data.remainingSeconds || 3600);
+  const fetchExamPaper = useCallback(async () => {
+    try {
+      const res = await api.get(`/exam/paper/${registrationId}`);
+      setExamData(res.data);
+      setRemainingSeconds(res.data.remainingSeconds || 3600);
 
-        if (res.data.isExamEnd) {
-          setIsSubmitted(true);
-        } else if (res.data.examStart) {
-          setHasStarted(true);
-        }
-
-        if (res.data.savedAnswers) {
-          setAnswers(res.data.savedAnswers);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+      if (res.data.isExamEnd) {
+        setIsSubmitted(true);
+      } else if (res.data.examStart) {
+        setHasStarted(true);
       }
-    };
 
+      if (res.data.savedAnswers) {
+        setAnswers(res.data.savedAnswers);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [registrationId]);
+
+  useEffect(() => {
     fetchExamPaper();
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [registrationId]);
+  }, [fetchExamPaper]);
 
   // Timer countdown
   useEffect(() => {
@@ -81,6 +81,7 @@ export const CandidateExamPortalPage: React.FC = () => {
       const res = await api.post(`/exam/start/${registrationId}`);
       setRemainingSeconds(res.data.remainingSeconds);
       setHasStarted(true);
+      await fetchExamPaper();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to start examination.');
     }
