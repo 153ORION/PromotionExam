@@ -20,9 +20,12 @@ import {
   ChevronUp,
   Copy,
   Sparkles,
-  Award
+  Award,
+  AlertTriangle,
+  RefreshCcw
 } from 'lucide-react';
 import {
+  AiNarrativeEvaluation,
   NarrativeCandidate,
   CandidateNarrativeQuestion,
   ExaminerScorePreview,
@@ -50,6 +53,8 @@ export const NarrativeScorePage: React.FC = () => {
 
   // Scoring inputs
   const [scores, setScores] = useState<Record<number, { marks: number; remarks: string }>>({});
+  const [aiEvaluations, setAiEvaluations] = useState<Record<number, AiNarrativeEvaluation | null>>({});
+  const [aiLoadingQuestionId, setAiLoadingQuestionId] = useState<number | null>(null);
   const [savingQuestionId, setSavingQuestionId] = useState<number | null>(null);
   const [savingAll, setSavingAll] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -126,6 +131,9 @@ export const NarrativeScorePage: React.FC = () => {
       });
       setScores(initialScores);
       setExpandedPreviews(initialExpanded);
+      setAiEvaluations(Object.fromEntries(
+        res.data.map((q: CandidateNarrativeQuestion) => [q.questionId, q.aiEvaluation || null])
+      ));
     } catch (err) {
       console.error(err);
     } finally {
@@ -307,6 +315,47 @@ export const NarrativeScorePage: React.FC = () => {
     } finally {
       setSavingAll(false);
     }
+  };
+
+  const handleAiEvaluate = async (question: CandidateNarrativeQuestion, forceReevaluate = false) => {
+    if (!selectedCandidate) return;
+
+    setAiLoadingQuestionId(question.questionId);
+    try {
+      const res = await api.post('/marking/ai-evaluate', {
+        examineeId: selectedCandidate.examineeId,
+        questionId: question.questionId,
+        forceReevaluate
+      });
+
+      setAiEvaluations(prev => ({
+        ...prev,
+        [question.questionId]: res.data
+      }));
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to generate AI evaluation.');
+    } finally {
+      setAiLoadingQuestionId(null);
+    }
+  };
+
+  const applyAiSuggestion = (questionId: number) => {
+    const ai = aiEvaluations[questionId];
+    if (!ai) return;
+
+    const summaryParts = [
+      ai.summary || '',
+      ai.missingPoints.length ? `Missing: ${ai.missingPoints.join('; ')}` : '',
+      ai.incorrectPoints.length ? `Incorrect: ${ai.incorrectPoints.join('; ')}` : ''
+    ].filter(Boolean);
+
+    setScores(prev => ({
+      ...prev,
+      [questionId]: {
+        marks: ai.awardedMarks,
+        remarks: summaryParts.join(' | ')
+      }
+    }));
   };
 
   const activeBatch = batches.find(b => b.batchId === selectedBatchId);
@@ -581,6 +630,21 @@ export const NarrativeScorePage: React.FC = () => {
                           <Badge variant="outline" className="text-xs font-semibold">
                             Max Marks: {q.maxMarks}
                           </Badge>
+                          <Badge
+                            className={`text-xs ${
+                              q.aiRubricStatus === 'Ready'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : q.aiRubricStatus === 'Outdated'
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                  : 'bg-slate-100 text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            {q.aiRubricStatus === 'Ready'
+                              ? `AI Rubric v${q.aiRubricVersionNo}`
+                              : q.aiRubricStatus === 'Outdated'
+                                ? 'Rubric Outdated'
+                                : 'No AI Rubric'}
+                          </Badge>
                         </div>
                       </div>
 
@@ -612,6 +676,145 @@ export const NarrativeScorePage: React.FC = () => {
                             </p>
                           </div>
                         )}
+
+                        <div className={`rounded-lg border p-4 space-y-3 ${
+                          q.aiRubricStatus === 'Ready'
+                            ? 'bg-emerald-50/40 border-emerald-200'
+                            : q.aiRubricStatus === 'Outdated'
+                              ? 'bg-amber-50/60 border-amber-200'
+                              : 'bg-slate-50 border-slate-200'
+                        }`}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-emerald-700" />
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                                AI Marking Assistant
+                              </span>
+                            </div>
+                            {q.aiRubricStatus === 'Ready' && (
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleAiEvaluate(q, false)}
+                                  disabled={aiLoadingQuestionId === q.questionId}
+                                  className="text-[11px] h-8 border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+                                >
+                                  <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                  {aiLoadingQuestionId === q.questionId ? 'Analyzing...' : 'AI Suggest'}
+                                </Button>
+                                {aiEvaluations[q.questionId] && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleAiEvaluate(q, true)}
+                                    disabled={aiLoadingQuestionId === q.questionId}
+                                    className="text-[11px] h-8 border-slate-300 text-slate-700 hover:bg-slate-100"
+                                  >
+                                    <RefreshCcw className="h-3.5 w-3.5 mr-1" />
+                                    Refresh AI
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {q.aiRubricStatus === 'NotGenerated' && (
+                            <p className="text-xs text-slate-600">
+                              No AI rubric exists for this question yet. Generate the rubric from the Narrative Questions page first.
+                            </p>
+                          )}
+
+                          {q.aiRubricStatus === 'Outdated' && (
+                            <p className="text-xs text-amber-800 flex items-start gap-1.5">
+                              <AlertTriangle className="h-3.5 w-3.5 mt-0.5" />
+                              The saved rubric no longer matches the latest question or standard answer. Regenerate it before requesting AI marking.
+                            </p>
+                          )}
+
+                          {aiEvaluations[q.questionId] && (
+                            <div className="rounded-lg border border-emerald-200 bg-white p-4 space-y-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <div className="text-xs font-bold text-emerald-900">
+                                    Suggested Marks: {aiEvaluations[q.questionId]?.awardedMarks} / {q.maxMarks}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500">
+                                    Confidence: {Math.round((aiEvaluations[q.questionId]?.confidence ?? 0) * 100)}% | Status: {aiEvaluations[q.questionId]?.validationStatus}
+                                  </div>
+                                </div>
+                                {canEditThisQuestion && aiEvaluations[q.questionId]?.isValidSuggestion && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => applyAiSuggestion(q.questionId)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] h-8"
+                                  >
+                                    Use AI Suggestion
+                                  </Button>
+                                )}
+                              </div>
+
+                              {aiEvaluations[q.questionId]?.summary && (
+                                <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                                  {aiEvaluations[q.questionId]?.summary}
+                                </p>
+                              )}
+
+                              {aiEvaluations[q.questionId]?.validationNotes && (
+                                <div className={`text-xs rounded-md px-3 py-2 border ${
+                                  aiEvaluations[q.questionId]?.validationStatus === 'Validated'
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : 'bg-amber-50 text-amber-900 border-amber-200'
+                                }`}>
+                                  {aiEvaluations[q.questionId]?.validationNotes}
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                                <div>
+                                  <div className="font-semibold text-slate-700 mb-1">Strengths</div>
+                                  <div className="space-y-1 text-slate-600">
+                                    {(aiEvaluations[q.questionId]?.strengths || []).length === 0 ? 'None noted' : aiEvaluations[q.questionId]?.strengths.map((item, index) => (
+                                      <div key={index}>• {item}</div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-slate-700 mb-1">Missing Points</div>
+                                  <div className="space-y-1 text-slate-600">
+                                    {(aiEvaluations[q.questionId]?.missingPoints || []).length === 0 ? 'None noted' : aiEvaluations[q.questionId]?.missingPoints.map((item, index) => (
+                                      <div key={index}>• {item}</div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-slate-700 mb-1">Incorrect Points</div>
+                                  <div className="space-y-1 text-slate-600">
+                                    {(aiEvaluations[q.questionId]?.incorrectPoints || []).length === 0 ? 'None noted' : aiEvaluations[q.questionId]?.incorrectPoints.map((item, index) => (
+                                      <div key={index}>• {item}</div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="text-xs font-semibold text-slate-700">Criterion Breakdown</div>
+                                {(aiEvaluations[q.questionId]?.criterionBreakdown || []).map((item) => (
+                                  <div key={`${item.rubricDetailId}-${item.criterionTitle}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-semibold text-slate-800">{item.criterionTitle}</span>
+                                      <span className="font-bold text-emerald-700">{item.awardedMarks} / {item.maxMarks}</span>
+                                    </div>
+                                    <div className="text-slate-600 mt-1">{item.reason}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
                         {/* Previous Examiner Marking Preview Panel */}
                         {previewExaminersMode && (
@@ -807,4 +1010,3 @@ export const NarrativeScorePage: React.FC = () => {
     </div>
   );
 };
-

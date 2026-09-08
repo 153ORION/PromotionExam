@@ -41,6 +41,12 @@ namespace PromotionExam.Application.DTOs.Questions
         public decimal Marks { get; set; }
         public bool? IsActive { get; set; }
         public DateTime? EntryDate { get; set; }
+        public string? AiRubricStatus { get; set; }
+        public int? AiRubricVersionNo { get; set; }
+        public bool AiRubricNeedsRegeneration { get; set; }
+        public int AiRubricCriteriaCount { get; set; }
+        public string? AiRubricSummary { get; set; }
+        public DateTime? AiRubricGeneratedAt { get; set; }
         public List<QuestionOptionDto> Answers { get; set; } = new();
     }
 

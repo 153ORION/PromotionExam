@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Filter, Edit, FileText, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, Filter, Edit, FileText, Sparkles, RefreshCcw, AlertTriangle } from 'lucide-react';
 import { Question, QuestionSet } from '@/types';
 
 export const QuestionNarrativePage: React.FC = () => {
@@ -23,6 +23,7 @@ export const QuestionNarrativePage: React.FC = () => {
   const [narrativeAnswer, setNarrativeAnswer] = useState('');
   const [marks, setMarks] = useState<number>(10.0);
   const [submitting, setSubmitting] = useState(false);
+  const [rubricBusyQuestionId, setRubricBusyQuestionId] = useState<number | null>(null);
 
   const fetchSets = async () => {
     try {
@@ -112,6 +113,45 @@ export const QuestionNarrativePage: React.FC = () => {
     }
   };
 
+  const handleGenerateRubric = async (question: Question, forceRegenerate = false) => {
+    setRubricBusyQuestionId(question.questionId);
+    try {
+      const res = await api.post(`/questions/${question.questionId}/ai-rubric/generate`, null, {
+        params: { forceRegenerate }
+      });
+      alert(`${res.data.message} Rubric version: ${res.data.rubric?.versionNo ?? '-'}`);
+      fetchQuestions();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to generate AI rubric.');
+    } finally {
+      setRubricBusyQuestionId(null);
+    }
+  };
+
+  const renderRubricBadge = (question: Question) => {
+    if (question.aiRubricStatus === 'Ready') {
+      return (
+        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-xs">
+          AI Rubric v{question.aiRubricVersionNo} Ready
+        </Badge>
+      );
+    }
+
+    if (question.aiRubricStatus === 'Outdated') {
+      return (
+        <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-xs">
+          Rubric Outdated
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge variant="outline" className="text-xs">
+        No AI Rubric
+      </Badge>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -164,8 +204,27 @@ export const QuestionNarrativePage: React.FC = () => {
                   </span>
                   <span className="text-xs font-semibold text-slate-600">Question ID: #{q.questionId}</span>
                   <Badge variant="outline" className="text-xs">Marks: {q.marks}</Badge>
+                  {renderRubricBadge(q)}
                 </div>
                 <div className="flex items-center space-x-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleGenerateRubric(q, q.aiRubricStatus === 'Outdated')}
+                    disabled={rubricBusyQuestionId === q.questionId}
+                    className="border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                  >
+                    {q.aiRubricStatus === 'Outdated' ? (
+                      <RefreshCcw className="h-3.5 w-3.5 mr-1" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    {rubricBusyQuestionId === q.questionId
+                      ? 'Processing...'
+                      : q.aiRubricStatus === 'Outdated'
+                        ? 'Regenerate Rubric'
+                        : 'Generate Rubric'}
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => handleOpenEdit(q)}>
                     <Edit className="h-3.5 w-3.5 mr-1" /> Edit
                   </Button>
@@ -191,6 +250,39 @@ export const QuestionNarrativePage: React.FC = () => {
                     </p>
                   </div>
                 )}
+
+                <div className={`rounded-lg border p-4 ${
+                  q.aiRubricStatus === 'Ready'
+                    ? 'bg-emerald-50/70 border-emerald-200'
+                    : q.aiRubricStatus === 'Outdated'
+                      ? 'bg-amber-50/70 border-amber-200'
+                      : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center">
+                      <Sparkles className="h-3.5 w-3.5 mr-1 text-emerald-600" /> AI Marking Rubric
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      {renderRubricBadge(q)}
+                      {q.aiRubricCriteriaCount ? (
+                        <Badge variant="outline" className="text-xs">Criteria: {q.aiRubricCriteriaCount}</Badge>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {q.aiRubricSummary && (
+                    <p className="text-sm text-slate-700 mt-2 leading-relaxed whitespace-pre-wrap">
+                      {q.aiRubricSummary}
+                    </p>
+                  )}
+
+                  {q.aiRubricStatus === 'Outdated' && (
+                    <p className="text-xs text-amber-800 mt-2 flex items-start gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5" />
+                      The question text, standard answer, or marks changed after the current rubric was generated. Regenerate before using AI marking.
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))

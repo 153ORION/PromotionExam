@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "PromotionExam.Application/1.0.0": {
+        "dependencies": {
+          "PromotionExam.Domain": "1.0.0"
+        },
+        "runtime": {
+          "PromotionExam.Application.dll": {}
+        }
+      },
+      "PromotionExam.Domain/1.0.0": {
+        "runtime": {
+          "PromotionExam.Domain.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "PromotionExam.Application/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "PromotionExam.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

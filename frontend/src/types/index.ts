@@ -101,6 +101,12 @@ export interface Question {
   marks: number;
   isActive?: boolean;
   entryDate?: string;
+  aiRubricStatus?: string;
+  aiRubricVersionNo?: number;
+  aiRubricNeedsRegeneration?: boolean;
+  aiRubricCriteriaCount?: number;
+  aiRubricSummary?: string;
+  aiRubricGeneratedAt?: string;
   answers: QuestionOption[];
 }
 
@@ -219,8 +225,72 @@ export interface CandidateNarrativeQuestion {
   canEdit?: boolean;
   finalApproverName?: string;
   isCurrentExaminerApprover?: boolean;
+  aiRubricStatus?: string;
+  aiRubricVersionNo?: number;
+  aiRubricNeedsRegeneration?: boolean;
+  aiEvaluation?: AiNarrativeEvaluation;
   awardedMarks?: number;
   remarks?: string;
+}
+
+export interface AiRubricCriterion {
+  rubricDetailId: number;
+  criterionTitle: string;
+  expectedConcept: string;
+  scoringGuidance?: string;
+  maxMarks: number;
+  sortOrder: number;
+  keywords: string[];
+  commonMistakes: string[];
+}
+
+export interface AiRubric {
+  rubricMasterId: number;
+  questionId: number;
+  versionNo: number;
+  status: string;
+  isActive: boolean;
+  needsRegeneration: boolean;
+  subjectSnapshot?: string;
+  maxMarks: number;
+  rubricSummary?: string;
+  sourceModel?: string;
+  promptVersion?: string;
+  entryDate?: string;
+  criteriaCount: number;
+  criteria: AiRubricCriterion[];
+}
+
+export interface AiEvaluationCriterion {
+  rubricDetailId: number;
+  criterionTitle: string;
+  awardedMarks: number;
+  maxMarks: number;
+  reason: string;
+}
+
+export interface AiNarrativeEvaluation {
+  aiEvaluationId: number;
+  examineeId: number;
+  questionId: number;
+  rubricMasterId: number;
+  rubricVersionNo: number;
+  awardedMarks: number;
+  maxMarks: number;
+  confidence: number;
+  summary?: string;
+  strengths: string[];
+  missingPoints: string[];
+  incorrectPoints: string[];
+  criterionBreakdown: AiEvaluationCriterion[];
+  validationStatus: string;
+  validationNotes?: string;
+  reviewRecommended: boolean;
+  sourceModel?: string;
+  promptVersion?: string;
+  entryDate?: string;
+  isCached: boolean;
+  isValidSuggestion: boolean;
 }
 
 export interface ExamineeResultSummary {

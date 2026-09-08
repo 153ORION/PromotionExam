@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PromotionExam.Application.Common.Ai;
+using PromotionExam.Application.Common.Interfaces;
 using PromotionExam.Application.DTOs.Questions;
 using PromotionExam.Domain.Entities;
 using PromotionExam.Infrastructure.Data;
@@ -17,10 +20,24 @@ namespace PromotionExam.WebApi.Controllers
     public class QuestionsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IAiMarkingService _aiMarkingService;
+        private readonly IUserActivityService _activityService;
 
-        public QuestionsController(ApplicationDbContext context)
+        public QuestionsController(
+            ApplicationDbContext context,
+            IAiMarkingService aiMarkingService,
+            IUserActivityService activityService)
         {
             _context = context;
+            _aiMarkingService = aiMarkingService;
+            _activityService = activityService;
+        }
+
+        private long GetCurrentUserId()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            long.TryParse(userIdClaim, out var userId);
+            return userId;
         }
 
         #region Question Sets
@@ -155,6 +172,34 @@ namespace PromotionExam.WebApi.Controllers
                 })
                 .ToListAsync();
 
+            var narrativeQuestions = questions.Where(q => q.TypeId == 2).ToList();
+            if (narrativeQuestions.Any())
+            {
+                var rubricMap = await _context.AiRubricMasters
+                    .Where(r => narrativeQuestions.Select(q => q.QuestionId).Contains(r.QuestionId) && r.IsActive)
+                    .GroupBy(r => r.QuestionId)
+                    .Select(g => g.OrderByDescending(x => x.VersionNo).First())
+                    .ToDictionaryAsync(r => r.QuestionId, r => r);
+
+                foreach (var narrative in narrativeQuestions)
+                {
+                    if (!rubricMap.TryGetValue(narrative.QuestionId, out var rubric))
+                    {
+                        narrative.AiRubricStatus = "NotGenerated";
+                        continue;
+                    }
+
+                    var fingerprint = AiRubricFingerprint.Create(narrative.Question, narrative.NarrativeAnswer, narrative.Marks);
+                    var outdated = !string.Equals(rubric.RubricHash, fingerprint, StringComparison.OrdinalIgnoreCase);
+                    narrative.AiRubricStatus = outdated ? "Outdated" : "Ready";
+                    narrative.AiRubricVersionNo = rubric.VersionNo;
+                    narrative.AiRubricNeedsRegeneration = outdated;
+                    narrative.AiRubricCriteriaCount = CountRubricCriteria(rubric.CriteriaJson);
+                    narrative.AiRubricSummary = rubric.RubricSummary;
+                    narrative.AiRubricGeneratedAt = rubric.EntryDate;
+                }
+            }
+
             return Ok(questions);
         }
 
@@ -188,6 +233,30 @@ namespace PromotionExam.WebApi.Controllers
                     IsRight = a.AnswerIsRight == 1
                 }).ToList()
             };
+
+            if (q.TypeId == 2)
+            {
+                var rubric = await _context.AiRubricMasters
+                    .Where(r => r.QuestionId == q.QuestionId && r.IsActive)
+                    .OrderByDescending(r => r.VersionNo)
+                    .FirstOrDefaultAsync();
+
+                if (rubric == null)
+                {
+                    dto.AiRubricStatus = "NotGenerated";
+                }
+                else
+                {
+                    var fingerprint = AiRubricFingerprint.Create(q.Question, q.NarrativeAnswer, q.Marks);
+                    var outdated = !string.Equals(rubric.RubricHash, fingerprint, StringComparison.OrdinalIgnoreCase);
+                    dto.AiRubricStatus = outdated ? "Outdated" : "Ready";
+                    dto.AiRubricVersionNo = rubric.VersionNo;
+                    dto.AiRubricNeedsRegeneration = outdated;
+                    dto.AiRubricCriteriaCount = CountRubricCriteria(rubric.CriteriaJson);
+                    dto.AiRubricSummary = rubric.RubricSummary;
+                    dto.AiRubricGeneratedAt = rubric.EntryDate;
+                }
+            }
 
             return Ok(dto);
         }
@@ -272,6 +341,48 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(new { message = "Question saved successfully.", questionId = question.QuestionId });
         }
 
+        [HttpGet("{id}/ai-rubric")]
+        public async Task<IActionResult> GetAiRubric(int id)
+        {
+            var rubric = await _aiMarkingService.GetQuestionRubricAsync(id);
+            if (rubric == null)
+                return NotFound(new { message = "Narrative question not found." });
+
+            return Ok(rubric);
+        }
+
+        [HttpPost("{id}/ai-rubric/generate")]
+        public async Task<IActionResult> GenerateAiRubric(int id, [FromQuery] bool forceRegenerate = false)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var rubric = await _aiMarkingService.GenerateQuestionRubricAsync(id, forceRegenerate, userId);
+
+                var actor = await _context.SysUserRegistrations.FindAsync(userId);
+                var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                await _activityService.LogAsync(
+                    userId,
+                    actor?.LoginId ?? userId.ToString(),
+                    actor?.Name ?? "User",
+                    "Admin",
+                    "AI_MARKING",
+                    forceRegenerate ? "AI_RUBRIC_REGENERATE" : "AI_RUBRIC_GENERATE",
+                    $"AI rubric {(forceRegenerate ? "re" : string.Empty)}generated for Question #{id}, version {rubric.VersionNo}.",
+                    ip);
+
+                return Ok(new
+                {
+                    message = forceRegenerate ? "AI rubric regenerated successfully." : "AI rubric generated successfully.",
+                    rubric
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteQuestion(int id)
         {
@@ -286,6 +397,21 @@ namespace PromotionExam.WebApi.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Question deleted successfully." });
+        }
+
+        private static int CountRubricCriteria(string? criteriaJson)
+        {
+            if (string.IsNullOrWhiteSpace(criteriaJson))
+                return 0;
+
+            try
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<List<object>>(criteriaJson)?.Count ?? 0;
+            }
+            catch
+            {
+                return 0;
+            }
         }
         #endregion
     }

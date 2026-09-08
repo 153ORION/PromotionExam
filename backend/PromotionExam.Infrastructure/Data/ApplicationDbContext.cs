@@ -23,6 +23,8 @@ namespace PromotionExam.Infrastructure.Data
         public DbSet<ExamQuestionSheet> ExamQuestionSheets => Set<ExamQuestionSheet>();
         public DbSet<ExamAnswerSheet> ExamAnswerSheets => Set<ExamAnswerSheet>();
         public DbSet<ExamNarrativeScore> ExamNarrativeScores => Set<ExamNarrativeScore>();
+        public DbSet<AiRubricMaster> AiRubricMasters => Set<AiRubricMaster>();
+        public DbSet<ExamNarrativeAiEvaluation> ExamNarrativeAiEvaluations => Set<ExamNarrativeAiEvaluation>();
         public DbSet<SysUserActivityLog> SysUserActivityLogs => Set<SysUserActivityLog>();
         public DbSet<SysCompanyConfig> SysCompanyConfigs => Set<SysCompanyConfig>();
 
@@ -128,6 +130,30 @@ namespace PromotionExam.Infrastructure.Data
                 entity.HasOne(e => e.Question)
                       .WithMany()
                       .HasForeignKey(e => e.QuestionId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<AiRubricMaster>(entity =>
+            {
+                entity.HasKey(e => e.RubricMasterId);
+                entity.HasIndex(e => new { e.QuestionId, e.VersionNo }).IsUnique();
+                entity.HasOne(e => e.Question)
+                      .WithMany()
+                      .HasForeignKey(e => e.QuestionId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ExamNarrativeAiEvaluation>(entity =>
+            {
+                entity.HasKey(e => e.AiEvaluationId);
+                entity.HasIndex(e => new { e.ExamineeId, e.QuestionId, e.RubricMasterId }).IsUnique();
+                entity.HasOne(e => e.Question)
+                      .WithMany()
+                      .HasForeignKey(e => e.QuestionId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.RubricMaster)
+                      .WithMany()
+                      .HasForeignKey(e => e.RubricMasterId)
                       .OnDelete(DeleteBehavior.Restrict);
             });
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.EntityFrameworkCore;
 using PromotionExam.Application.Common.Interfaces;
 using PromotionExam.Domain.Entities;
 
@@ -11,6 +12,7 @@ namespace PromotionExam.Infrastructure.Data
         public static void Initialize(ApplicationDbContext context, ICryptographyService crypto)
         {
             context.Database.EnsureCreated();
+            EnsureAiMarkingSchema(context);
 
             // 1. Seed Users
             if (!context.SysUserRegistrations.Any())
@@ -294,6 +296,81 @@ namespace PromotionExam.Infrastructure.Data
                     context.SaveChanges();
                 }
             }
+        }
+
+        private static void EnsureAiMarkingSchema(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF OBJECT_ID(N'[dbo].[AI_Rubric_Master]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[dbo].[Question_Bank_Answer_Rebric]', N'U') IS NULL
+BEGIN
+    EXEC sp_rename N'[dbo].[AI_Rubric_Master]', N'Question_Bank_Answer_Rebric';
+END
+IF OBJECT_ID(N'[dbo].[Question_Bank_Answer_Rebric]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Question_Bank_Answer_Rebric](
+        [RubricMasterId] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [QuestionId] [int] NOT NULL,
+        [VersionNo] [int] NOT NULL,
+        [RubricHash] [nvarchar](128) NOT NULL,
+        [QuestionSnapshot] [nvarchar](max) NOT NULL,
+        [StandardAnswerSnapshot] [nvarchar](max) NULL,
+        [SubjectSnapshot] [nvarchar](500) NULL,
+        [MaxMarks] [decimal](18,2) NOT NULL,
+        [RubricSummary] [nvarchar](max) NULL,
+        [CriteriaJson] [nvarchar](max) NULL,
+        [SourceModel] [nvarchar](100) NULL,
+        [PromptVersion] [nvarchar](50) NULL,
+        [IsActive] [bit] NOT NULL CONSTRAINT [DF_Question_Bank_Answer_Rebric_IsActive] DEFAULT(1),
+        [GeneratedBy] [bigint] NULL,
+        [EntryDate] [datetime2] NULL,
+        [UpdateDate] [datetime2] NULL,
+        CONSTRAINT [FK_Question_Bank_Answer_Rebric_Question_Bank] FOREIGN KEY([QuestionId]) REFERENCES [dbo].[Question_Bank]([QuestionId])
+    );
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Question_Bank_Answer_Rebric_QuestionId_VersionNo' AND object_id = OBJECT_ID(N'[dbo].[Question_Bank_Answer_Rebric]'))
+BEGIN
+    CREATE UNIQUE INDEX [UX_Question_Bank_Answer_Rebric_QuestionId_VersionNo] ON [dbo].[Question_Bank_Answer_Rebric]([QuestionId], [VersionNo]);
+END
+IF COL_LENGTH(N'[dbo].[Question_Bank_Answer_Rebric]', 'CriteriaJson') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Question_Bank_Answer_Rebric] ADD [CriteriaJson] [nvarchar](max) NULL;
+END
+");
+
+            context.Database.ExecuteSqlRaw(@"
+IF OBJECT_ID(N'[dbo].[Exam_Narrative_AI_Evaluation]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Exam_Narrative_AI_Evaluation](
+        [AiEvaluationId] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [ExamineeId] [int] NOT NULL,
+        [QuestionId] [int] NOT NULL,
+        [RubricMasterId] [int] NOT NULL,
+        [StudentAnswerSnapshot] [nvarchar](max) NULL,
+        [AwardedMarks] [decimal](18,2) NOT NULL,
+        [Confidence] [decimal](5,4) NULL,
+        [Summary] [nvarchar](max) NULL,
+        [StrengthsJson] [nvarchar](max) NULL,
+        [MissingPointsJson] [nvarchar](max) NULL,
+        [IncorrectPointsJson] [nvarchar](max) NULL,
+        [CriterionBreakdownJson] [nvarchar](max) NULL,
+        [ValidationStatus] [nvarchar](50) NOT NULL,
+        [ValidationNotes] [nvarchar](max) NULL,
+        [ReviewRecommended] [bit] NOT NULL CONSTRAINT [DF_Exam_Narrative_AI_Evaluation_ReviewRecommended] DEFAULT(0),
+        [SourceModel] [nvarchar](100) NULL,
+        [PromptVersion] [nvarchar](50) NULL,
+        [RequestedBy] [bigint] NULL,
+        [EntryDate] [datetime2] NULL,
+        [UpdateDate] [datetime2] NULL,
+        CONSTRAINT [FK_Exam_Narrative_AI_Evaluation_Question_Bank] FOREIGN KEY([QuestionId]) REFERENCES [dbo].[Question_Bank]([QuestionId]),
+        CONSTRAINT [FK_Exam_Narrative_AI_Evaluation_Question_Bank_Answer_Rebric] FOREIGN KEY([RubricMasterId]) REFERENCES [dbo].[Question_Bank_Answer_Rebric]([RubricMasterId])
+    );
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Exam_Narrative_AI_Evaluation_Examinee_Question_Rubric' AND object_id = OBJECT_ID(N'[dbo].[Exam_Narrative_AI_Evaluation]'))
+BEGIN
+    CREATE UNIQUE INDEX [UX_Exam_Narrative_AI_Evaluation_Examinee_Question_Rubric] ON [dbo].[Exam_Narrative_AI_Evaluation]([ExamineeId], [QuestionId], [RubricMasterId]);
+END
+");
         }
     }
 }

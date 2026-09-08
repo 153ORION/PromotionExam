@@ -56,6 +56,10 @@ namespace PromotionExam.Application.DTOs.Marking
         public bool CanEdit { get; set; } = true;
         public string? FinalApproverName { get; set; }
         public bool IsCurrentExaminerApprover { get; set; }
+        public string? AiRubricStatus { get; set; }
+        public int? AiRubricVersionNo { get; set; }
+        public bool AiRubricNeedsRegeneration { get; set; }
+        public AiNarrativeEvaluationDto? AiEvaluation { get; set; }
 
         // Kept for backward compatibility
         public decimal? AwardedMarks { get; set; }

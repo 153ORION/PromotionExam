@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PromotionExam.Application.Common.Ai;
+using PromotionExam.Application.Common.Interfaces;
 using PromotionExam.Application.DTOs.Marking;
 using PromotionExam.Domain.Entities;
 using PromotionExam.Infrastructure.Data;
@@ -19,13 +21,16 @@ namespace PromotionExam.WebApi.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly PromotionExam.Application.Common.Interfaces.IUserActivityService _activityService;
+        private readonly IAiMarkingService _aiMarkingService;
 
         public MarkingController(
             ApplicationDbContext context,
-            PromotionExam.Application.Common.Interfaces.IUserActivityService activityService)
+            PromotionExam.Application.Common.Interfaces.IUserActivityService activityService,
+            IAiMarkingService aiMarkingService)
         {
             _context = context;
             _activityService = activityService;
+            _aiMarkingService = aiMarkingService;
         }
 
         private long GetCurrentExaminerId()
@@ -188,6 +193,20 @@ namespace PromotionExam.WebApi.Controllers
                 .Where(s => s.ExamineeId == examineeId)
                 .ToListAsync();
 
+            var activeRubrics = await _context.AiRubricMasters
+                .Where(r => narrativeQuestions.Select(q => q.QuestionId).Contains(r.QuestionId) && r.IsActive)
+                .GroupBy(r => r.QuestionId)
+                .Select(g => g.OrderByDescending(x => x.VersionNo).First())
+                .ToDictionaryAsync(r => r.QuestionId, r => r);
+
+            var rubricIds = activeRubrics.Values.Select(r => r.RubricMasterId).ToList();
+            var aiEvaluations = rubricIds.Any()
+                ? await _context.ExamNarrativeAiEvaluations
+                    .Where(e => e.ExamineeId == examineeId && rubricIds.Contains(e.RubricMasterId))
+                    .ToListAsync()
+                : new List<ExamNarrativeAiEvaluation>();
+            var aiEvaluationMap = aiEvaluations.ToDictionary(e => (e.QuestionId, e.RubricMasterId), e => e);
+
             var (isFinalized, approverFlow, approverUser, approverTotalScore) = await CheckIsMarkingFinalizedAsync(reg, candidateScores);
 
             var examinerIds = candidateScores.Select(s => s.ExaminerId).Distinct().ToList();
@@ -266,11 +285,46 @@ namespace PromotionExam.WebApi.Controllers
                     IsFinalized = isFinalized,
                     CanEdit = canEdit,
                     FinalApproverName = approverUser?.Name,
-                    IsCurrentExaminerApprover = isCurrentExaminerApprover
+                    IsCurrentExaminerApprover = isCurrentExaminerApprover,
+                    AiRubricStatus = GetAiRubricStatus(q, activeRubrics),
+                    AiRubricVersionNo = activeRubrics.ContainsKey(q.QuestionId) ? activeRubrics[q.QuestionId].VersionNo : null,
+                    AiRubricNeedsRegeneration = IsAiRubricOutdated(q, activeRubrics),
+                    AiEvaluation = GetAiEvaluationDto(q.QuestionId, activeRubrics, aiEvaluationMap)
                 };
             }).ToList();
 
             return Ok(result);
+        }
+
+        [HttpPost("ai-evaluate")]
+        public async Task<IActionResult> EvaluateNarrativeWithAi([FromBody] EvaluateAiNarrativeRequestDto dto)
+        {
+            var examinerId = GetCurrentExaminerId();
+            if (examinerId <= 0)
+                return Unauthorized(new { message = "Examiner authentication required." });
+
+            try
+            {
+                var evaluation = await _aiMarkingService.EvaluateAnswerAsync(dto.ExamineeId, dto.QuestionId, dto.ForceReevaluate, examinerId);
+
+                var examiner = await _context.SysUserRegistrations.FindAsync(examinerId);
+                var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                await _activityService.LogAsync(
+                    examinerId,
+                    examiner?.LoginId ?? examinerId.ToString(),
+                    examiner?.Name ?? "Examiner",
+                    "Admin",
+                    "AI_MARKING",
+                    dto.ForceReevaluate ? "AI_MARK_REEVALUATE" : "AI_MARK_EVALUATE",
+                    $"AI evaluated Question #{dto.QuestionId} for Examinee #{dto.ExamineeId}: {evaluation.AwardedMarks}/{evaluation.MaxMarks}.",
+                    ip);
+
+                return Ok(evaluation);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPost("score")]
@@ -500,6 +554,90 @@ namespace PromotionExam.WebApi.Controllers
             await _context.SaveChangesAsync();
 
             return totalWritten;
+        }
+
+        private static string GetAiRubricStatus(QuestionBank question, Dictionary<int, AiRubricMaster> activeRubrics)
+        {
+            if (!activeRubrics.TryGetValue(question.QuestionId, out var rubric))
+                return "NotGenerated";
+
+            var fingerprint = AiRubricFingerprint.Create(question.Question, question.NarrativeAnswer, question.Marks);
+            return string.Equals(rubric.RubricHash, fingerprint, StringComparison.OrdinalIgnoreCase) ? "Ready" : "Outdated";
+        }
+
+        private static bool IsAiRubricOutdated(QuestionBank question, Dictionary<int, AiRubricMaster> activeRubrics)
+        {
+            if (!activeRubrics.TryGetValue(question.QuestionId, out var rubric))
+                return false;
+
+            var fingerprint = AiRubricFingerprint.Create(question.Question, question.NarrativeAnswer, question.Marks);
+            return !string.Equals(rubric.RubricHash, fingerprint, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static AiNarrativeEvaluationDto? GetAiEvaluationDto(
+            int questionId,
+            Dictionary<int, AiRubricMaster> activeRubrics,
+            Dictionary<(int QuestionId, int RubricMasterId), ExamNarrativeAiEvaluation> aiEvaluationMap)
+        {
+            if (!activeRubrics.TryGetValue(questionId, out var rubric))
+                return null;
+
+            if (!aiEvaluationMap.TryGetValue((questionId, rubric.RubricMasterId), out var evaluation))
+                return null;
+
+            return new AiNarrativeEvaluationDto
+            {
+                AiEvaluationId = evaluation.AiEvaluationId,
+                ExamineeId = evaluation.ExamineeId,
+                QuestionId = evaluation.QuestionId,
+                RubricMasterId = evaluation.RubricMasterId,
+                RubricVersionNo = rubric.VersionNo,
+                AwardedMarks = evaluation.AwardedMarks,
+                MaxMarks = rubric.MaxMarks,
+                Confidence = Math.Round(evaluation.Confidence ?? 0, 4),
+                Summary = evaluation.Summary,
+                Strengths = DeserializeStringList(evaluation.StrengthsJson),
+                MissingPoints = DeserializeStringList(evaluation.MissingPointsJson),
+                IncorrectPoints = DeserializeStringList(evaluation.IncorrectPointsJson),
+                CriterionBreakdown = DeserializeCriterionBreakdown(evaluation.CriterionBreakdownJson),
+                ValidationStatus = evaluation.ValidationStatus,
+                ValidationNotes = evaluation.ValidationNotes,
+                ReviewRecommended = evaluation.ReviewRecommended,
+                SourceModel = evaluation.SourceModel,
+                PromptVersion = evaluation.PromptVersion,
+                EntryDate = evaluation.UpdateDate ?? evaluation.EntryDate,
+                IsCached = true
+            };
+        }
+
+        private static List<string> DeserializeStringList(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return new List<string>();
+
+            try
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+            }
+            catch
+            {
+                return new List<string>();
+            }
+        }
+
+        private static List<AiEvaluationCriterionDto> DeserializeCriterionBreakdown(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return new List<AiEvaluationCriterionDto>();
+
+            try
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<List<AiEvaluationCriterionDto>>(json) ?? new List<AiEvaluationCriterionDto>();
+            }
+            catch
+            {
+                return new List<AiEvaluationCriterionDto>();
+            }
         }
     }
 }

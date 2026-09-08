@@ -28,6 +28,11 @@ builder.Services.AddScoped<ICryptographyService, LegacyCryptographyService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IUserActivityService, PromotionExam.Infrastructure.Services.UserActivityService>();
 builder.Services.AddScoped<PromotionExam.Application.Common.Interfaces.ICandidateExamService, PromotionExam.Infrastructure.Services.CandidateExamService>();
+builder.Services.AddHttpClient<IAiMarkingService, PromotionExam.Infrastructure.Services.AiMarkingService>(client =>
+{
+    var timeout = builder.Configuration.GetValue<int?>("OpenAI:TimeoutSeconds") ?? 60;
+    client.Timeout = TimeSpan.FromSeconds(timeout);
+});
 
 // 4. JWT Authentication
 var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "PromotionExam_SuperSecretKey_2026_SecureAuthenticationToken_CleanArchitecture_Key!";
