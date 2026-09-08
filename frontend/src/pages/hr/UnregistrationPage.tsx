@@ -22,10 +22,12 @@ export const UnregistrationPage: React.FC = () => {
           api.get('/batches'),
           api.get('/questions/sets'),
         ]);
-        setBatches(resBatches.data);
-        if (resBatches.data.length > 0) setSelectedBatchId(resBatches.data[0].batchId);
+        const activeBatches = (resBatches.data || []).filter((b: ExamBatch) => b.isActive !== false);
+        setBatches(activeBatches);
+        if (activeBatches.length > 0) setSelectedBatchId(activeBatches[0].batchId);
 
-        setSets(resSets.data);
+        const activeSets = (resSets.data || []).filter((s: QuestionSet) => s.isActive !== false);
+        setSets(activeSets);
       } catch (err) {
         console.error(err);
       }

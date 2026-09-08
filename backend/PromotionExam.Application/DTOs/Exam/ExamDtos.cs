@@ -60,6 +60,7 @@ namespace PromotionExam.Application.DTOs.Exam
         public int ExamSetId { get; set; }
         public string? SetName { get; set; }
         public int ExaminerId { get; set; }
+        public string? ExaminerCode { get; set; }
         public string? ExaminerName { get; set; }
         public string? ExaminerDesignation { get; set; }
         public string? ExaminerDepartment { get; set; }
@@ -93,6 +94,7 @@ namespace PromotionExam.Application.DTOs.Exam
         public int QuestionSetId { get; set; }
         public string? SetName { get; set; }
         public int? ExamGradeId { get; set; }
+        public string? ExamGradeName { get; set; }
         public decimal? MCQScore { get; set; }
         public decimal? WrittenScore { get; set; }
         public decimal? TotalScore { get; set; }

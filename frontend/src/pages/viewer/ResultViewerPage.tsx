@@ -31,8 +31,9 @@ export const ResultViewerPage: React.FC = () => {
     const fetchBatches = async () => {
       try {
         const res = await api.get('/batches');
-        setBatches(res.data);
-        if (res.data.length > 0) setSelectedBatchId(res.data[0].batchId);
+        const activeBatches = (res.data || []).filter((b: ExamBatch) => b.isActive !== false);
+        setBatches(activeBatches);
+        if (activeBatches.length > 0) setSelectedBatchId(activeBatches[0].batchId);
       } catch (err) {
         console.error(err);
       }

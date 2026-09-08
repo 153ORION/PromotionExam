@@ -28,7 +28,7 @@ export const QuestionSetsPage: React.FC = () => {
     setLoading(true);
     try {
       const [resSets, resLookups] = await Promise.all([
-        api.get('/questions/sets'),
+        api.get('/questions/sets', { params: { includeInactive: true } }),
         api.get('/lookups/basic')
       ]);
       setSets(resSets.data);
@@ -101,7 +101,7 @@ export const QuestionSetsPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Question Sets</h2>
-          <p className="text-sm text-slate-500">Create and configure question paper sets mapped to Department, Grade, and Concentration.</p>
+          <p className="text-sm text-slate-500">Create and configure question paper sets mapped to Location, Department, Grade, and Concentration.</p>
         </div>
         <Button onClick={handleOpenAdd} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1">
           <Plus className="h-4 w-4" />
@@ -120,9 +120,9 @@ export const QuestionSetsPage: React.FC = () => {
               <TableRow>
                 <TableHead className="w-16">ID</TableHead>
                 <TableHead>Set Name</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Target Grade</TableHead>
                 <TableHead>Location</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Grade</TableHead>
                 <TableHead>Concentration</TableHead>
                 <TableHead className="text-center">Questions</TableHead>
                 <TableHead>Status</TableHead>
@@ -147,9 +147,9 @@ export const QuestionSetsPage: React.FC = () => {
                   <TableRow key={s.setId}>
                     <TableCell className="font-mono text-xs text-slate-500">#{s.setId}</TableCell>
                     <TableCell className="font-semibold text-slate-900">{s.setName}</TableCell>
+                    <TableCell className="text-sm text-slate-700">{s.locationName || '-'}</TableCell>
                     <TableCell className="text-sm text-slate-700">{s.departmentName || '-'}</TableCell>
                     <TableCell className="text-sm text-slate-700">{s.gradeName || '-'}</TableCell>
-                    <TableCell className="text-sm text-slate-700">{s.locationName || '-'}</TableCell>
                     <TableCell className="text-sm text-slate-700">{s.concentrationName || '-'}</TableCell>
                     <TableCell className="text-center">
                       <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
@@ -192,7 +192,7 @@ export const QuestionSetsPage: React.FC = () => {
         <DialogHeader>
           <DialogTitle>{editingSet ? 'Edit Question Set' : 'Create New Question Set'}</DialogTitle>
           <DialogDescription>
-            Configure the question set and associate with appropriate department and grade.
+            Configure the question set and associate with appropriate location, department, grade, and concentration.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -207,6 +207,22 @@ export const QuestionSetsPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Location</label>
+              <select
+                value={locationId || ''}
+                onChange={(e) => setLocationId(e.target.value ? Number(e.target.value) : undefined)}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-600"
+              >
+                <option value="">-- Any Location --</option>
+                {basicLookups['Location']?.map((l) => (
+                  <option key={l.lookupId} value={l.lookupId}>
+                    {l.lookupText}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Department</label>
               <select
@@ -224,7 +240,7 @@ export const QuestionSetsPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Target Grade</label>
+              <label className="text-sm font-medium text-slate-700">Grade</label>
               <select
                 value={gradeId || ''}
                 onChange={(e) => setGradeId(e.target.value ? Number(e.target.value) : undefined)}
@@ -234,22 +250,6 @@ export const QuestionSetsPage: React.FC = () => {
                 {basicLookups['Grade']?.map((g) => (
                   <option key={g.lookupId} value={g.lookupId}>
                     {g.lookupText}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Location</label>
-              <select
-                value={locationId || ''}
-                onChange={(e) => setLocationId(e.target.value ? Number(e.target.value) : undefined)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-600"
-              >
-                <option value="">-- Any Location --</option>
-                {basicLookups['Location']?.map((l) => (
-                  <option key={l.lookupId} value={l.lookupId}>
-                    {l.lookupText}
                   </option>
                 ))}
               </select>

@@ -371,6 +371,24 @@ BEGIN
     CREATE UNIQUE INDEX [UX_Exam_Narrative_AI_Evaluation_Examinee_Question_Rubric] ON [dbo].[Exam_Narrative_AI_Evaluation]([ExamineeId], [QuestionId], [RubricMasterId]);
 END
 ");
+
+            context.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH(N'[dbo].[Sys_CompanyConfiguration]', 'OpenAiApiKey') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Sys_CompanyConfiguration] ADD [OpenAiApiKey] [nvarchar](max) NULL;
+END
+IF COL_LENGTH(N'[dbo].[Sys_CompanyConfiguration]', 'GeminiApiKey') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Sys_CompanyConfiguration] ADD [GeminiApiKey] [nvarchar](max) NULL;
+END
+IF COL_LENGTH(N'[dbo].[Sys_CompanyConfiguration]', 'GeminiApiKey') IS NOT NULL
+   AND COL_LENGTH(N'[dbo].[Sys_CompanyConfiguration]', 'OpenAiApiKey') IS NOT NULL
+BEGIN
+    UPDATE [dbo].[Sys_CompanyConfiguration]
+    SET [GeminiApiKey] = [OpenAiApiKey]
+    WHERE [GeminiApiKey] IS NULL AND [OpenAiApiKey] IS NOT NULL;
+END
+");
         }
     }
 }

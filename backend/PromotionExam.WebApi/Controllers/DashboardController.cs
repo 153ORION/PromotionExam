@@ -24,8 +24,8 @@ namespace PromotionExam.WebApi.Controllers
         {
             var totalExaminees = await _context.ExamRegistrations.CountAsync();
             var totalExaminers = await _context.SysFlowpaths.Select(f => f.ExaminerId).Distinct().CountAsync();
-            var totalBatches = await _context.ExamBatches.CountAsync();
-            var totalQuestionSets = await _context.QuestionSets.CountAsync();
+            var totalBatches = await _context.ExamBatches.CountAsync(b => b.IsActive == true);
+            var totalQuestionSets = await _context.QuestionSets.CountAsync(s => s.IsActive == true);
             var totalMCQ = await _context.QuestionBanks.CountAsync(q => q.TypeId == 1);
             var totalWritten = await _context.QuestionBanks.CountAsync(q => q.TypeId == 2);
             var totalCompleted = await _context.ExamRegistrations.CountAsync(r => r.IsExamEnd == true);

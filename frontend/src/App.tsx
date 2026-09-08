@@ -20,6 +20,7 @@ import { SystemConfigPage } from '@/pages/admin/SystemConfigPage';
 import { QuestionSetsPage } from '@/pages/questions/QuestionSetsPage';
 import { QuestionMCQPage } from '@/pages/questions/QuestionMCQPage';
 import { QuestionNarrativePage } from '@/pages/questions/QuestionNarrativePage';
+import { QuestionRubricGeneratePage } from '@/pages/questions/QuestionRubricGeneratePage';
 import { QuestionViewerPage } from '@/pages/questions/QuestionViewerPage';
 
 // HR Panel & Marking
@@ -28,6 +29,7 @@ import { RegistrationPage } from '@/pages/hr/RegistrationPage';
 import { UnregistrationPage } from '@/pages/hr/UnregistrationPage';
 import { TimeEditorPage } from '@/pages/hr/TimeEditorPage';
 import { FlowPathPage } from '@/pages/marking/FlowPathPage';
+import { AssignExaminerPage } from '@/pages/marking/AssignExaminerPage';
 import { NarrativeScorePage } from '@/pages/marking/NarrativeScorePage';
 
 // Viewer & Results
@@ -64,9 +66,12 @@ export const App: React.FC = () => {
                 <Route path="/question-bank/sets" element={<QuestionSetsPage />} />
                 <Route path="/question-bank/mcq" element={<QuestionMCQPage />} />
                 <Route path="/question-bank/narrative" element={<QuestionNarrativePage />} />
+                <Route path="/question-bank/generate-rubrics" element={<QuestionRubricGeneratePage />} />
 
                 {/* Marking Module */}
                 <Route path="/marking/flow-path" element={<FlowPathPage />} />
+                <Route path="/marking/flow-path/assign" element={<AssignExaminerPage />} />
+                <Route path="/marking/assign-examiner" element={<AssignExaminerPage />} />
                 <Route path="/marking/narrative-score" element={<NarrativeScorePage />} />
 
                 {/* HR Panel Module */}

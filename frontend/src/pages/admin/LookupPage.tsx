@@ -39,7 +39,12 @@ export const LookupPage: React.FC = () => {
     setLoading(true);
     try {
       const tid = typeId !== undefined ? typeId : selectedTypeId;
-      const res = await api.get('/lookups/items', { params: { typeId: tid > 0 ? tid : undefined } });
+      const res = await api.get('/lookups/items', { 
+        params: { 
+          typeId: tid > 0 ? tid : undefined,
+          includeInactive: true 
+        } 
+      });
       setLookups(res.data);
     } catch (err) {
       console.error(err);

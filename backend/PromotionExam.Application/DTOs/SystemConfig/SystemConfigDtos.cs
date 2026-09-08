@@ -14,6 +14,8 @@ namespace PromotionExam.Application.DTOs.SystemConfig
         public string? WebsiteUrl { get; set; }
         public string? LogoUrl { get; set; }
         public string? ExamTermsNotice { get; set; }
+        public bool HasGeminiApiKey { get; set; }
+        public bool HasOpenAiApiKey { get; set; }
         public DateTime LastUpdatedDate { get; set; }
         public string? UpdatedBy { get; set; }
     }
@@ -44,5 +46,21 @@ namespace PromotionExam.Application.DTOs.SystemConfig
 
         [StringLength(2000)]
         public string? ExamTermsNotice { get; set; }
+
+        public string? GeminiApiKey { get; set; }
+        public string? OpenAiApiKey { get; set; }
+    }
+
+    public class SystemConfigSecretsDto
+    {
+        public bool HasGeminiApiKey { get; set; }
+        public string? GeminiApiKey { get; set; }
+        public bool HasOpenAiApiKey { get; set; }
+        public string? OpenAiApiKey { get; set; }
+    }
+
+    public class TestGeminiKeyRequestDto
+    {
+        public string? ApiKey { get; set; }
     }
 }

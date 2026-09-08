@@ -23,7 +23,8 @@ export const SearchExamineePage: React.FC = () => {
     const fetchBatches = async () => {
       try {
         const res = await api.get('/batches');
-        setBatches(res.data);
+        const activeBatches = (res.data || []).filter((b: ExamBatch) => b.isActive !== false);
+        setBatches(activeBatches);
       } catch (err) {
         console.error(err);
       }

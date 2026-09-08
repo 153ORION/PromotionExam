@@ -32,7 +32,7 @@ export const ExamBatchesPage: React.FC = () => {
   const fetchBatches = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/batches');
+      const res = await api.get('/batches', { params: { includeInactive: true } });
       setBatches(res.data);
     } catch (err) {
       console.error(err);

@@ -24,13 +24,15 @@ import {
   AlertTriangle,
   RefreshCcw
 } from 'lucide-react';
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
   AiNarrativeEvaluation,
   NarrativeCandidate,
   CandidateNarrativeQuestion,
   ExaminerScorePreview,
   ExamBatch,
-  QuestionSet
+  QuestionSet,
+  AutoMarkExamineeResult
 } from '@/types';
 
 export const NarrativeScorePage: React.FC = () => {
@@ -59,6 +61,12 @@ export const NarrativeScorePage: React.FC = () => {
   const [savingAll, setSavingAll] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
+  // Auto-Mark Examinee States
+  const [autoMarkingCandidate, setAutoMarkingCandidate] = useState<boolean>(false);
+  const [autoMarkDialogOpen, setAutoMarkDialogOpen] = useState<boolean>(false);
+  const [autoMarkApplyScores, setAutoMarkApplyScores] = useState<boolean>(true);
+  const [autoMarkForceReevaluate, setAutoMarkForceReevaluate] = useState<boolean>(false);
+
   useEffect(() => {
     const initData = async () => {
       try {
@@ -66,11 +74,13 @@ export const NarrativeScorePage: React.FC = () => {
           api.get('/batches'),
           api.get('/questions/sets'),
         ]);
-        setBatches(resBatches.data);
-        if (resBatches.data.length > 0) setSelectedBatchId(resBatches.data[0].batchId);
+        const activeBatches = (resBatches.data || []).filter((b: ExamBatch) => b.isActive !== false);
+        setBatches(activeBatches);
+        if (activeBatches.length > 0) setSelectedBatchId(activeBatches[0].batchId);
 
-        setSets(resSets.data);
-        if (resSets.data.length > 0) setSelectedSetId(resSets.data[0].setId);
+        const activeSets = (resSets.data || []).filter((s: QuestionSet) => s.isActive !== false);
+        setSets(activeSets);
+        if (activeSets.length > 0) setSelectedSetId(activeSets[0].setId);
       } catch (err) {
         console.error(err);
       }
@@ -358,6 +368,62 @@ export const NarrativeScorePage: React.FC = () => {
     }));
   };
 
+  const handleRunAutoMark = async () => {
+    if (!selectedCandidate) return;
+
+    setAutoMarkingCandidate(true);
+    setSaveSuccess(null);
+    try {
+      const res = await api.post(`/marking/examinee/${selectedCandidate.examineeId}/auto-mark`, {
+        forceReevaluate: autoMarkForceReevaluate,
+        autoApplyScores: autoMarkApplyScores
+      });
+
+      const result: AutoMarkExamineeResult = res.data;
+
+      if (result.questions && result.questions.length > 0) {
+        const newAiEvals = { ...aiEvaluations };
+        const newScores = { ...scores };
+
+        result.questions.forEach(item => {
+          if (item.evaluation) {
+            newAiEvals[item.questionId] = item.evaluation;
+            if (autoMarkApplyScores) {
+              const summaryParts = [
+                item.evaluation.summary || '',
+                item.evaluation.missingPoints.length ? `Missing: ${item.evaluation.missingPoints.join('; ')}` : '',
+                item.evaluation.incorrectPoints.length ? `Incorrect: ${item.evaluation.incorrectPoints.join('; ')}` : ''
+              ].filter(Boolean);
+
+              newScores[item.questionId] = {
+                marks: item.evaluation.awardedMarks,
+                remarks: summaryParts.join(' | ')
+              };
+            }
+          }
+        });
+
+        setAiEvaluations(newAiEvals);
+        if (autoMarkApplyScores) {
+          setScores(newScores);
+        }
+      }
+
+      setSaveSuccess(result.message);
+      setAutoMarkDialogOpen(false);
+
+      if (autoMarkApplyScores) {
+        await fetchCandidates();
+        const refreshed = await api.get(`/marking/examinee/${selectedCandidate.examineeId}/narratives`);
+        setQuestions(refreshed.data);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to auto-mark candidate answers with Gemini.');
+    } finally {
+      setAutoMarkingCandidate(false);
+    }
+  };
+
   const activeBatch = batches.find(b => b.batchId === selectedBatchId);
   const myTotalScore = questions.reduce((sum, q) => sum + Number(scores[q.questionId]?.marks ?? 0), 0);
   const maxTotalScore = questions.reduce((sum, q) => sum + Number(q.maxMarks ?? 0), 0);
@@ -443,14 +509,27 @@ export const NarrativeScorePage: React.FC = () => {
             </Button>
 
             {selectedCandidate && questions.length > 0 && (
-              <Button
-                onClick={handleSaveAllScores}
-                disabled={savingAll}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center space-x-1.5 text-xs h-9"
-              >
-                <Save className="h-4 w-4" />
-                <span>{savingAll ? 'Saving All...' : 'Save All Scores'}</span>
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  onClick={() => setAutoMarkDialogOpen(true)}
+                  disabled={autoMarkingCandidate || (questions[0]?.isFinalized && !questions[0]?.canEdit)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-1.5 text-xs h-9 font-semibold shadow-sm"
+                  title="Run Google Gemini AI auto-marking for all questions of this examinee"
+                >
+                  <Sparkles className={`h-4 w-4 ${autoMarkingCandidate ? 'animate-spin' : 'text-indigo-200'}`} />
+                  <span>{autoMarkingCandidate ? 'Auto-Marking...' : 'AI Auto-Mark All'}</span>
+                </Button>
+
+                <Button
+                  onClick={handleSaveAllScores}
+                  disabled={savingAll}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center space-x-1.5 text-xs h-9"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{savingAll ? 'Saving All...' : 'Save All Scores'}</span>
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -561,6 +640,17 @@ export const NarrativeScorePage: React.FC = () => {
                               : `${(selectedCandidate.currentNarrativeScore ?? 0).toFixed(2)} / ${maxTotalScore}`)}
                         </span>
                       </div>
+
+                      <Button
+                        type="button"
+                        onClick={() => setAutoMarkDialogOpen(true)}
+                        disabled={autoMarkingCandidate || (questions[0]?.isFinalized && !questions[0]?.canEdit)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-1.5 text-xs h-10 px-3 font-semibold shadow-sm"
+                        title="Run Google Gemini AI auto-marking for all questions of this examinee"
+                      >
+                        <Sparkles className={`h-4 w-4 ${autoMarkingCandidate ? 'animate-spin' : 'text-indigo-200'}`} />
+                        <span>{autoMarkingCandidate ? 'Auto-Marking...' : 'AI Auto-Mark All'}</span>
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -1007,6 +1097,95 @@ export const NarrativeScorePage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Auto-Mark Examinee Dialog */}
+      <Dialog open={autoMarkDialogOpen} onOpenChange={setAutoMarkDialogOpen}>
+        <DialogHeader>
+          <div className="flex items-center space-x-2 text-indigo-700">
+            <Sparkles className="h-5 w-5" />
+            <DialogTitle>Gemini AI Auto-Mark Examinee</DialogTitle>
+          </div>
+          <DialogDescription>
+            Automatically evaluate all narrative questions for <strong>{selectedCandidate?.name}</strong> using Google Gemini.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2 text-sm">
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+            <div className="flex justify-between text-xs text-slate-600">
+              <span>Candidate:</span>
+              <span className="font-semibold text-slate-900">{selectedCandidate?.name} ({selectedCandidate?.loginId})</span>
+            </div>
+            <div className="flex justify-between text-xs text-slate-600">
+              <span>Narrative Questions:</span>
+              <span className="font-semibold text-slate-900">{questions.length} questions ({maxTotalScore} marks total)</span>
+            </div>
+            <div className="flex justify-between text-xs text-slate-600">
+              <span>AI Engine:</span>
+              <span className="font-semibold text-indigo-700">Google Gemini (Rubric-driven)</span>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-1">
+            <label className="flex items-start space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoMarkApplyScores}
+                onChange={(e) => setAutoMarkApplyScores(e.target.checked)}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-1"
+              />
+              <div>
+                <span className="font-medium text-slate-800 text-xs block">Automatically save scores & remarks to scorecard</span>
+                <span className="text-[11px] text-slate-500 block">
+                  Applies awarded marks and detailed feedback into the database and updates candidate totals immediately.
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoMarkForceReevaluate}
+                onChange={(e) => setAutoMarkForceReevaluate(e.target.checked)}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-1"
+              />
+              <div>
+                <span className="font-medium text-slate-800 text-xs block">Force Gemini re-evaluation</span>
+                <span className="text-[11px] text-slate-500 block">
+                  Bypass previously cached AI evaluations and request fresh evaluations from Gemini.
+                </span>
+              </div>
+            </label>
+          </div>
+
+          {questions[0]?.isFinalized && !questions[0]?.canEdit && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs flex items-center space-x-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+              <span>Marking is finalized. Scores cannot be saved or changed.</span>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAutoMarkDialogOpen(false)}
+            disabled={autoMarkingCandidate}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleRunAutoMark}
+            disabled={autoMarkingCandidate || questions.length === 0 || (questions[0]?.isFinalized && !questions[0]?.canEdit)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-1.5"
+          >
+            <Sparkles className={`h-4 w-4 ${autoMarkingCandidate ? 'animate-spin' : ''}`} />
+            <span>{autoMarkingCandidate ? 'Evaluating with Gemini...' : `Start Auto-Marking (${questions.length})`}</span>
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 };

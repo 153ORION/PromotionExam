@@ -17,9 +17,10 @@ export const QuestionViewerPage: React.FC = () => {
     const fetchSets = async () => {
       try {
         const res = await api.get('/questions/sets');
-        setSets(res.data);
-        if (res.data.length > 0) {
-          setSelectedSetId(res.data[0].setId);
+        const activeSets = (res.data || []).filter((s: QuestionSet) => s.isActive !== false);
+        setSets(activeSets);
+        if (activeSets.length > 0) {
+          setSelectedSetId(activeSets[0].setId);
         }
       } catch (err) {
         console.error(err);
@@ -119,9 +120,13 @@ export const QuestionViewerPage: React.FC = () => {
             Orion Group - Promotion Examination
           </h2>
           <h3 className="text-base font-semibold text-blue-800">{selectedSet?.setName || 'Question Paper'}</h3>
-          <div className="flex justify-center space-x-6 text-xs text-slate-500 pt-1">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs text-slate-500 pt-1">
+            <span>Location: <strong>{selectedSet?.locationName || 'All'}</strong></span>
             <span>Department: <strong>{selectedSet?.departmentName || 'All'}</strong></span>
-            <span>Target Grade: <strong>{selectedSet?.gradeName || 'All'}</strong></span>
+            <span>Grade: <strong>{selectedSet?.gradeName || 'All'}</strong></span>
+            {selectedSet?.concentrationName && (
+              <span>Concentration: <strong>{selectedSet.concentrationName}</strong></span>
+            )}
             <span>Total Marks: <strong>{totalMarks}</strong></span>
           </div>
         </div>

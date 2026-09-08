@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '@/services/api';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
@@ -24,14 +25,16 @@ export const QuestionNarrativePage: React.FC = () => {
   const [marks, setMarks] = useState<number>(10.0);
   const [submitting, setSubmitting] = useState(false);
   const [rubricBusyQuestionId, setRubricBusyQuestionId] = useState<number | null>(null);
+  const [draftingAnswer, setDraftingAnswer] = useState(false);
 
   const fetchSets = async () => {
     try {
       const res = await api.get('/questions/sets');
-      setSets(res.data);
-      if (res.data.length > 0 && selectedSetId === 0) {
-        setSelectedSetId(res.data[0].setId);
-        setFormSetId(res.data[0].setId);
+      const activeSets = (res.data || []).filter((s: QuestionSet) => s.isActive !== false);
+      setSets(activeSets);
+      if (activeSets.length > 0 && selectedSetId === 0) {
+        setSelectedSetId(activeSets[0].setId);
+        setFormSetId(activeSets[0].setId);
       }
     } catch (err) {
       console.error(err);
@@ -128,6 +131,23 @@ export const QuestionNarrativePage: React.FC = () => {
     }
   };
 
+  const handleDraftStandardAnswer = async () => {
+    if (!editingQuestion?.questionId) {
+      alert('Please save the question first before drafting a standard answer with Gemini.');
+      return;
+    }
+    setDraftingAnswer(true);
+    try {
+      const res = await api.post(`/questions/${editingQuestion.questionId}/standard-answer/generate`);
+      setNarrativeAnswer(res.data.standardAnswer);
+      alert('Standard model answer drafted successfully using Google Gemini!');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to generate standard answer with Gemini.');
+    } finally {
+      setDraftingAnswer(false);
+    }
+  };
+
   const renderRubricBadge = (question: Question) => {
     if (question.aiRubricStatus === 'Ready') {
       return (
@@ -159,10 +179,18 @@ export const QuestionNarrativePage: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900">Narrative Questions Master</h2>
           <p className="text-sm text-slate-500">Create open-ended descriptive questions and reference model answers for examiner evaluation.</p>
         </div>
-        <Button onClick={handleOpenAdd} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1">
-          <Plus className="h-4 w-4" />
-          <span>Add Narrative Question</span>
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Link to="/question-bank/generate-rubrics">
+            <Button variant="outline" className="border-emerald-300 text-emerald-800 hover:bg-emerald-50 flex items-center space-x-1">
+              <Sparkles className="h-4 w-4 text-emerald-600" />
+              <span>Batch Generate Rubrics</span>
+            </Button>
+          </Link>
+          <Button onClick={handleOpenAdd} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1">
+            <Plus className="h-4 w-4" />
+            <span>Add Narrative Question</span>
+          </Button>
+        </div>
       </div>
 
       {/* Set Filter */}
@@ -328,7 +356,24 @@ export const QuestionNarrativePage: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Model Answer (Guide for Grading)</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-700">Model Answer (Guide for Grading)</label>
+              {editingQuestion?.questionId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDraftStandardAnswer}
+                  disabled={draftingAnswer}
+                  className="text-xs h-7 border-emerald-300 text-emerald-800 hover:bg-emerald-50 flex items-center gap-1"
+                >
+                  <Sparkles className={`h-3 w-3 ${draftingAnswer ? 'animate-spin' : 'text-emerald-600'}`} />
+                  <span>{draftingAnswer ? 'Drafting...' : 'Draft with Gemini'}</span>
+                </Button>
+              ) : (
+                <span className="text-[11px] text-slate-400">Save question to enable Gemini draft</span>
+              )}
+            </div>
             <textarea
               value={narrativeAnswer}
               onChange={(e) => setNarrativeAnswer(e.target.value)}

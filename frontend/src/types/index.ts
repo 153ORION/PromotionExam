@@ -141,12 +141,22 @@ export interface Flowpath {
   examSetId: number;
   setName?: string;
   examinerId: number;
+  examinerCode?: string;
   examinerName?: string;
   examinerDesignation?: string;
   examinerDepartment?: string;
   rank: number;
   approver?: boolean;
   entryDate?: string;
+}
+
+export interface ActiveEmployee {
+  hrRecordId: number;
+  loginId: string;
+  name: string;
+  designation?: string;
+  departmentName?: string;
+  locationName?: string;
 }
 
 export interface ExamRegistration {
@@ -164,6 +174,7 @@ export interface ExamRegistration {
   questionSetId: number;
   setName?: string;
   examGradeId?: number;
+  examGradeName?: string;
   mcqScore?: number;
   writtenScore?: number;
   totalScore?: number;
@@ -322,3 +333,60 @@ export interface DashboardStats {
   totalWrittenQuestions: number;
   totalCompletedExams: number;
 }
+
+export interface BatchRubricGenerateItemResult {
+  questionId: number;
+  question?: string;
+  status: 'Generated' | 'AlreadyGenerated' | 'Skipped' | 'Failed';
+  versionNo?: number;
+  criteriaCount?: number;
+  rubricSummary?: string;
+  message?: string;
+}
+
+export interface BatchRubricGenerateResult {
+  setId: number;
+  setName: string;
+  totalQuestions: number;
+  generatedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  results: BatchRubricGenerateItemResult[];
+}
+
+export interface QuestionAutoMarkItem {
+  questionId: number;
+  question: string;
+  maxMarks: number;
+  awardedMarks: number;
+  status: string;
+  remarks?: string;
+  evaluation?: AiNarrativeEvaluation;
+}
+
+export interface AutoMarkExamineeResult {
+  examineeId: number;
+  examineeName: string;
+  loginId: string;
+  totalQuestions: number;
+  evaluatedCount: number;
+  skippedCount: number;
+  totalAwardedMarks: number;
+  totalMaxMarks: number;
+  scoresApplied: boolean;
+  totalWrittenScore?: number;
+  questions: QuestionAutoMarkItem[];
+  message: string;
+}
+
+export interface AutoMarkExamineeRequest {
+  forceReevaluate?: boolean;
+  autoApplyScores?: boolean;
+}
+
+export interface GenerateStandardAnswerResponse {
+  questionId: number;
+  standardAnswer: string;
+  message: string;
+}
+

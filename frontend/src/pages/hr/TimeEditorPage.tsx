@@ -23,8 +23,9 @@ export const TimeEditorPage: React.FC = () => {
           api.get('/batches'),
           api.get('/registrations'),
         ]);
-        setBatches(resBatches.data);
-        if (resBatches.data.length > 0) setSelectedBatchId(resBatches.data[0].batchId);
+        const activeBatches = (resBatches.data || []).filter((b: ExamBatch) => b.isActive !== false);
+        setBatches(activeBatches);
+        if (activeBatches.length > 0) setSelectedBatchId(activeBatches[0].batchId);
 
         setRegistrations(resRegs.data);
         if (resRegs.data.length > 0) setSelectedExamineeId(resRegs.data[0].examineeId);

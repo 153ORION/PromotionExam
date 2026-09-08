@@ -23,11 +23,14 @@ namespace PromotionExam.WebApi.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetBatches([FromQuery] int? year)
+        public async Task<IActionResult> GetBatches([FromQuery] int? year, [FromQuery] bool includeInactive = false)
         {
             var query = _context.ExamBatches.AsQueryable();
             if (year.HasValue && year.Value > 0)
                 query = query.Where(b => b.ExamYear == year.Value);
+
+            if (!includeInactive)
+                query = query.Where(b => b.IsActive == true);
 
             var batches = await query
                 .OrderByDescending(b => b.BatchId)
@@ -195,8 +198,8 @@ namespace PromotionExam.WebApi.Controllers
             else if (request.BatchId.HasValue && request.BatchId.Value > 0)
             {
                 var batch = await _context.ExamBatches.FindAsync(request.BatchId.Value);
-                if (batch == null)
-                    return NotFound(new { message = "Exam Batch not found." });
+                if (batch == null || batch.IsActive != true)
+                    return BadRequest(new { message = "Active Exam Batch not found." });
 
                 if (batch.ExamEnd.HasValue)
                 {

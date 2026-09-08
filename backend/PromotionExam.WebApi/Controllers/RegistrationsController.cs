@@ -37,12 +37,14 @@ namespace PromotionExam.WebApi.Controllers
             if (questionSetId.HasValue && questionSetId.Value > 0)
                 query = query.Where(r => r.QuestionSetId == questionSetId.Value);
 
-            var list = await query
+            var lookups = await _context.SysLookups.ToDictionaryAsync(l => l.LookupId, l => l.LookupText);
+
+            var rawList = await query
                 .OrderByDescending(r => r.ExamineeId)
-                .Select(r => new ExamRegistrationDto
+                .Select(r => new
                 {
-                    ExamineeId = r.ExamineeId,
-                    HRRecordId = r.HRRecordId,
+                    r.ExamineeId,
+                    r.HRRecordId,
                     LoginId = r.User != null ? r.User.LoginId : "",
                     ExamineeName = r.User != null ? r.User.Name : "",
                     Designation = r.User != null ? r.User.Designation : null,
@@ -50,22 +52,50 @@ namespace PromotionExam.WebApi.Controllers
                     CompanyName = r.User != null ? r.User.CompanyName : null,
                     LocationName = r.User != null ? r.User.LocationName : null,
                     GradeName = r.User != null ? r.User.GradeName : null,
-                    BatchId = r.BatchId,
+                    r.BatchId,
                     BatchName = r.Batch != null ? r.Batch.ExamName : null,
-                    QuestionSetId = r.QuestionSetId,
+                    r.QuestionSetId,
                     SetName = r.QuestionSet != null ? r.QuestionSet.SetName : null,
-                    ExamGradeId = r.ExamGradeId,
-                    MCQScore = r.MCQScore,
-                    WrittenScore = r.WrittenScore,
-                    TotalScore = r.TotalScore,
-                    ExamStart = r.ExamStart,
-                    ExamEnd = r.ExamEnd,
-                    IsAttand = r.IsAttand,
-                    IsExamEnd = r.IsExamEnd,
-                    IsTimeExpire = r.IsTimeExpire,
-                    IsActive = r.IsActive
+                    r.ExamGradeId,
+                    r.MCQScore,
+                    r.WrittenScore,
+                    r.TotalScore,
+                    r.ExamStart,
+                    r.ExamEnd,
+                    r.IsAttand,
+                    r.IsExamEnd,
+                    r.IsTimeExpire,
+                    r.IsActive
                 })
                 .ToListAsync();
+
+            var list = rawList.Select(r => new ExamRegistrationDto
+            {
+                ExamineeId = r.ExamineeId,
+                HRRecordId = r.HRRecordId,
+                LoginId = r.LoginId,
+                ExamineeName = r.ExamineeName,
+                Designation = r.Designation,
+                DepartmentName = r.DepartmentName,
+                CompanyName = r.CompanyName,
+                LocationName = r.LocationName,
+                GradeName = r.GradeName,
+                BatchId = r.BatchId,
+                BatchName = r.BatchName,
+                QuestionSetId = r.QuestionSetId,
+                SetName = r.SetName,
+                ExamGradeId = r.ExamGradeId,
+                ExamGradeName = r.ExamGradeId.HasValue && lookups.ContainsKey(r.ExamGradeId.Value) ? lookups[r.ExamGradeId.Value] : null,
+                MCQScore = r.MCQScore,
+                WrittenScore = r.WrittenScore,
+                TotalScore = r.TotalScore,
+                ExamStart = r.ExamStart,
+                ExamEnd = r.ExamEnd,
+                IsAttand = r.IsAttand,
+                IsExamEnd = r.IsExamEnd,
+                IsTimeExpire = r.IsTimeExpire,
+                IsActive = r.IsActive
+            }).ToList();
 
             return Ok(list);
         }
@@ -112,6 +142,14 @@ namespace PromotionExam.WebApi.Controllers
 
             if (user == null)
                 return NotFound(new { message = "Employee not found." });
+
+            var batch = await _context.ExamBatches.FindAsync(dto.BatchId);
+            if (batch == null || batch.IsActive != true)
+                return BadRequest(new { message = "Cannot register for an inactive or non-existent exam batch." });
+
+            var qSet = await _context.QuestionSets.FindAsync(dto.QuestionSetId);
+            if (qSet == null || qSet.IsActive != true)
+                return BadRequest(new { message = "Cannot register for an inactive or non-existent question set." });
 
             var exists = await _context.ExamRegistrations
                 .AnyAsync(r => r.HRRecordId == user.HRRecordId && r.BatchId == dto.BatchId);

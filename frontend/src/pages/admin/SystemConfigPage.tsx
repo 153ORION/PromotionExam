@@ -17,7 +17,12 @@ import {
   AlertCircle, 
   ExternalLink,
   Shield,
-  Save
+  Save,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 
 interface SystemConfig {
@@ -30,6 +35,8 @@ interface SystemConfig {
   websiteUrl?: string;
   logoUrl?: string;
   examTermsNotice?: string;
+  hasGeminiApiKey?: boolean;
+  hasOpenAiApiKey?: boolean;
   lastUpdatedDate: string;
   updatedBy?: string;
 }
@@ -51,6 +58,11 @@ export const SystemConfigPage: React.FC = () => {
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [examTermsNotice, setExamTermsNotice] = useState('');
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [hasSavedApiKey, setHasSavedApiKey] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testingKey, setTestingKey] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Logo upload preview
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -71,6 +83,12 @@ export const SystemConfigPage: React.FC = () => {
       setWebsiteUrl(data.websiteUrl || '');
       setLogoUrl(data.logoUrl || '');
       setExamTermsNotice(data.examTermsNotice || '');
+      setHasSavedApiKey(!!data.hasGeminiApiKey || !!data.hasOpenAiApiKey);
+
+      const secretRes = await api.get('/system/config/secrets');
+      setGeminiApiKey(secretRes.data.geminiApiKey || secretRes.data.openAiApiKey || '');
+      setHasSavedApiKey(!!secretRes.data.hasGeminiApiKey || !!secretRes.data.hasOpenAiApiKey);
+      setTestResult(null);
     } catch (err) {
       console.error(err);
       setFeedback({ type: 'error', message: 'Failed to load system configuration.' });
@@ -82,6 +100,28 @@ export const SystemConfigPage: React.FC = () => {
   useEffect(() => {
     fetchConfig();
   }, []);
+
+  const handleTestGeminiKey = async () => {
+    if (!geminiApiKey.trim() && !hasSavedApiKey) {
+      setTestResult({ success: false, message: 'Please enter a Gemini API key to test.' });
+      return;
+    }
+    setTestingKey(true);
+    setTestResult(null);
+    try {
+      const res = await api.post('/system/config/test-gemini-key', {
+        apiKey: geminiApiKey.trim() || undefined
+      });
+      setTestResult(res.data);
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err.response?.data?.message || 'Failed to connect to Google Gemini API.'
+      });
+    } finally {
+      setTestingKey(false);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -142,9 +182,12 @@ export const SystemConfigPage: React.FC = () => {
         websiteUrl: websiteUrl.trim(),
         logoUrl: logoUrl.trim(),
         examTermsNotice: examTermsNotice.trim(),
+        geminiApiKey: geminiApiKey.trim(),
+        openAiApiKey: geminiApiKey.trim(),
       });
 
       setConfig(res.data);
+      setHasSavedApiKey(!!res.data.hasGeminiApiKey || !!res.data.hasOpenAiApiKey || !!geminiApiKey.trim());
       setFeedback({ type: 'success', message: 'System configuration settings saved successfully!' });
       refreshConfig();
     } catch (err: any) {
@@ -439,6 +482,117 @@ export const SystemConfigPage: React.FC = () => {
                     placeholder="Notice displayed to all examinees prior to taking tests..."
                     className="w-full rounded-md border border-slate-300 p-2.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-600"
                   />
+                </div>
+
+                <div className="space-y-3 rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/70 to-purple-50/40 p-5 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <label className="text-sm font-bold text-indigo-950 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-indigo-600" />
+                        Google Gemini API Key
+                      </label>
+                      <p className="text-xs text-indigo-900/80 mt-1 leading-relaxed">
+                        Powers the AI marking engine: rubric standard answer drafting, multi-dimensional scoring rubric generation, and automated candidate evaluation (Default Model: <code className="bg-indigo-100/80 text-indigo-800 px-1 py-0.5 rounded font-mono text-[11px]">gemini-2.5-flash</code>).
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={hasSavedApiKey ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-700 border-slate-300'}>
+                        {hasSavedApiKey ? 'Key Configured' : 'Not Set'}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="relative flex items-center">
+                      <Input
+                        type={showApiKey ? "text" : "password"}
+                        value={geminiApiKey}
+                        onChange={(e) => {
+                          setGeminiApiKey(e.target.value);
+                          setTestResult(null);
+                        }}
+                        placeholder="AIzaSy..."
+                        autoComplete="off"
+                        className="pr-24 font-mono text-xs bg-white border-indigo-200 focus:border-indigo-500 focus:ring-indigo-500"
+                      />
+                      <div className="absolute right-2 flex items-center space-x-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="h-7 w-7 p-0 text-slate-500 hover:text-slate-800"
+                          title={showApiKey ? "Hide Key" : "Show Key"}
+                        >
+                          {showApiKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </Button>
+                        {geminiApiKey && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setGeminiApiKey('');
+                              setHasSavedApiKey(false);
+                              setTestResult(null);
+                            }}
+                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            title="Clear Key"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-indigo-700 hover:text-indigo-900 hover:underline flex items-center gap-1 font-medium"
+                      >
+                        <span>Get API key from Google AI Studio</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTestGeminiKey}
+                        disabled={testingKey || (!geminiApiKey.trim() && !hasSavedApiKey)}
+                        className="h-8 text-xs bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 flex items-center space-x-1.5 font-medium"
+                      >
+                        {testingKey ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
+                            <span>Testing Connection...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                            <span>Test Gemini Connection</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {testResult && (
+                      <div className={`p-2.5 rounded-lg text-xs flex items-center space-x-2 border ${
+                        testResult.success
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-red-50 text-red-800 border-red-200'
+                      }`}>
+                        {testResult.success ? (
+                          <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                        )}
+                        <span className="font-medium">{testResult.message}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {config?.lastUpdatedDate && (

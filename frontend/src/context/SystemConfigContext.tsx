@@ -11,6 +11,8 @@ export interface SystemConfig {
   websiteUrl?: string;
   logoUrl?: string;
   examTermsNotice?: string;
+  hasGeminiApiKey?: boolean;
+  hasOpenAiApiKey?: boolean;
   lastUpdatedDate?: string;
   updatedBy?: string;
 }

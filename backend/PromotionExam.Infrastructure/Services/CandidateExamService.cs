@@ -37,7 +37,7 @@ namespace PromotionExam.Infrastructure.Services
                             join QS in _context.QuestionSets on ER.QuestionSetId equals QS.SetId
                             join GRD in _context.SysLookups on QS.GradeId equals GRD.LookupId into grdGroup
                             from GRD in grdGroup.DefaultIfEmpty()
-                            where ER.HRRecordId == hrrecordId && ER.IsExamEnd == false && B.IsActive == true && ER.IsActive == true
+                            where ER.HRRecordId == hrrecordId && ER.IsExamEnd == false && B.IsActive == true && ER.IsActive == true && QS.IsActive == true
                             select new ExamDashboardDTO
                             {
                                 ExamineeId = ER.ExamineeId,

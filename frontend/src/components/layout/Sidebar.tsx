@@ -19,12 +19,14 @@ import {
   Edit3,
   GitBranch,
   Clock,
-  UserX,
-  UserPlus,
+  UserX, 
+  UserPlus, 
+  UserCheck,
   ShieldCheck,
   FileText,
   Activity,
-  Building2
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -114,6 +116,7 @@ export const Sidebar: React.FC = () => {
               <SidebarItem to="/question-bank/sets" icon={<Layers className="h-4 w-4" />} label="Question Sets" />
               <SidebarItem to="/question-bank/mcq" icon={<ListPlus className="h-4 w-4" />} label="MCQ Questions" />
               <SidebarItem to="/question-bank/narrative" icon={<Edit3 className="h-4 w-4" />} label="Narrative Questions" />
+              <SidebarItem to="/question-bank/generate-rubrics" icon={<Sparkles className="h-4 w-4 text-emerald-500" />} label="Generate Rubrics" />
             </div>
           )}
         </div>
@@ -137,6 +140,7 @@ export const Sidebar: React.FC = () => {
           {openSections.marking && (
             <div className="mt-1 space-y-1 pl-2">
               <SidebarItem to="/marking/flow-path" icon={<GitBranch className="h-4 w-4" />} label="Flow Path" />
+              <SidebarItem to="/marking/assign-examiner" icon={<UserCheck className="h-4 w-4" />} label="Assign Examiner" />
               <SidebarItem to="/marking/narrative-score" icon={<Award className="h-4 w-4" />} label="Narrative Score" />
             </div>
           )}

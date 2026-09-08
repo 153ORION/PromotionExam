@@ -30,7 +30,9 @@ builder.Services.AddScoped<IUserActivityService, PromotionExam.Infrastructure.Se
 builder.Services.AddScoped<PromotionExam.Application.Common.Interfaces.ICandidateExamService, PromotionExam.Infrastructure.Services.CandidateExamService>();
 builder.Services.AddHttpClient<IAiMarkingService, PromotionExam.Infrastructure.Services.AiMarkingService>(client =>
 {
-    var timeout = builder.Configuration.GetValue<int?>("OpenAI:TimeoutSeconds") ?? 60;
+    var timeout = builder.Configuration.GetValue<int?>("Gemini:TimeoutSeconds")
+        ?? builder.Configuration.GetValue<int?>("OpenAI:TimeoutSeconds")
+        ?? 60;
     client.Timeout = TimeSpan.FromSeconds(timeout);
 });
 

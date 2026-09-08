@@ -36,6 +36,10 @@ namespace PromotionExam.Domain.Entities
         [StringLength(2000)]
         public string? ExamTermsNotice { get; set; } = "Candidates must adhere strictly to exam time limits and institutional honor code regulations.";
 
+        public string? GeminiApiKey { get; set; }
+
+        public string? OpenAiApiKey { get; set; }
+
         public DateTime LastUpdatedDate { get; set; } = DateTime.UtcNow;
 
         [StringLength(100)]

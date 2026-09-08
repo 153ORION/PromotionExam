@@ -104,12 +104,17 @@ namespace PromotionExam.WebApi.Controllers
 
         #region Lookup Items
         [HttpGet("items")]
-        public async Task<IActionResult> GetLookupItems([FromQuery] int? typeId)
+        public async Task<IActionResult> GetLookupItems([FromQuery] int? typeId, [FromQuery] bool includeInactive = false)
         {
             var query = _context.SysLookups.Include(l => l.LookupType).AsQueryable();
             if (typeId.HasValue && typeId.Value > 0)
             {
                 query = query.Where(l => l.TypeId == typeId.Value);
+            }
+
+            if (!includeInactive)
+            {
+                query = query.Where(l => l.IsActive == true && (l.LookupType == null || l.LookupType.IsActive == true));
             }
 
             var items = await query
@@ -188,7 +193,7 @@ namespace PromotionExam.WebApi.Controllers
         public async Task<IActionResult> GetBasicLookups()
         {
             var lookups = await _context.SysLookups
-                .Where(l => l.IsActive == true)
+                .Where(l => l.IsActive == true && (l.LookupType == null || l.LookupType.IsActive == true))
                 .Include(l => l.LookupType)
                 .OrderBy(l => l.Serial)
                 .Select(l => new

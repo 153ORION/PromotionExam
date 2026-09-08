@@ -11,7 +11,6 @@ namespace PromotionExam.WebApi.Controllers
 {
     [Authorize]
     [ApiController]
-    [Route("api/system/activity-logs")]
     [Route("api/system/activitylogs")]
     public class ActivityLogsController : ControllerBase
     {

@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import api from '@/services/api';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, UserCheck, UserPlus, AlertCircle, CheckCircle, Building, Briefcase, MapPin, Award } from 'lucide-react';
-import { ExamBatch, QuestionSet } from '@/types';
+import { 
+  Search, 
+  UserCheck, 
+  UserPlus, 
+  AlertCircle, 
+  CheckCircle, 
+  Building, 
+  Briefcase, 
+  MapPin, 
+  Award,
+  Users,
+  RefreshCw,
+  Filter
+} from 'lucide-react';
+import { ExamBatch, QuestionSet, ExamRegistration } from '@/types';
 
 export const RegistrationPage: React.FC = () => {
   const [batches, setBatches] = useState<ExamBatch[]>([]);
@@ -27,6 +41,12 @@ export const RegistrationPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Batch Roster states
+  const [registrations, setRegistrations] = useState<ExamRegistration[]>([]);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterSetFilter, setRosterSetFilter] = useState<number>(0);
+
   useEffect(() => {
     const initData = async () => {
       try {
@@ -35,11 +55,13 @@ export const RegistrationPage: React.FC = () => {
           api.get('/questions/sets'),
           api.get('/lookups/basic')
         ]);
-        setBatches(resBatches.data);
-        if (resBatches.data.length > 0) setSelectedBatchId(resBatches.data[0].batchId);
+        const activeBatches = (resBatches.data || []).filter((b: ExamBatch) => b.isActive !== false);
+        setBatches(activeBatches);
+        if (activeBatches.length > 0) setSelectedBatchId(activeBatches[0].batchId);
 
-        setSets(resSets.data);
-        if (resSets.data.length > 0) setSelectedSetId(resSets.data[0].setId);
+        const activeSets = (resSets.data || []).filter((s: QuestionSet) => s.isActive !== false);
+        setSets(activeSets);
+        if (activeSets.length > 0) setSelectedSetId(activeSets[0].setId);
 
         setBasicLookups(resLookups.data);
       } catch (err) {
@@ -65,6 +87,31 @@ export const RegistrationPage: React.FC = () => {
     }
   };
 
+  const fetchRegistrations = async (batchId?: number) => {
+    const targetBatchId = batchId !== undefined ? batchId : selectedBatchId;
+    if (targetBatchId <= 0) {
+      setRegistrations([]);
+      return;
+    }
+    setLoadingRegistrations(true);
+    try {
+      const res = await api.get('/registrations', {
+        params: { batchId: targetBatchId },
+      });
+      setRegistrations(res.data);
+    } catch (err) {
+      console.error('Failed to load batch registrations:', err);
+    } finally {
+      setLoadingRegistrations(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedBatchId > 0) {
+      fetchRegistrations(selectedBatchId);
+    }
+  }, [selectedBatchId]);
+
   const handleRegister = async () => {
     if (!foundEmployee || selectedBatchId <= 0 || selectedSetId <= 0) return;
 
@@ -83,12 +130,29 @@ export const RegistrationPage: React.FC = () => {
       setSuccessMessage(`Candidate ${foundEmployee.name} (${foundEmployee.loginId}) successfully registered!`);
       setFoundEmployee(null);
       setSearchQuery('');
+      fetchRegistrations(selectedBatchId);
     } catch (err: any) {
       setSearchError(err.response?.data?.message || 'Failed to register examinee.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const currentBatch = batches.find((b) => b.batchId === selectedBatchId);
+
+  const filteredRegistrations = registrations.filter((r) => {
+    if (rosterSetFilter > 0 && r.questionSetId !== rosterSetFilter) return false;
+    if (!rosterSearch.trim()) return true;
+    const q = rosterSearch.toLowerCase();
+    return (
+      r.loginId.toLowerCase().includes(q) ||
+      r.examineeName.toLowerCase().includes(q) ||
+      (r.departmentName && r.departmentName.toLowerCase().includes(q)) ||
+      (r.designation && r.designation.toLowerCase().includes(q)) ||
+      (r.companyName && r.companyName.toLowerCase().includes(q)) ||
+      (r.setName && r.setName.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <div className="space-y-6 w-full">
@@ -239,6 +303,169 @@ export const RegistrationPage: React.FC = () => {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Step 3: Batch-wise Registered Employees Section */}
+      <Card className="border-slate-200 shadow-sm overflow-hidden">
+        <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base flex items-center space-x-2 text-slate-900">
+                <Users className="h-5 w-5 text-blue-600" />
+                <span>Batch Registered Employees</span>
+                {currentBatch && (
+                  <Badge variant="outline" className="ml-2 font-normal bg-blue-50 text-blue-700 border-blue-200">
+                    {currentBatch.examName} ({currentBatch.examYear})
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="mt-1">
+                All candidates enrolled in the selected exam batch. Automatically updates when new candidates are registered.
+              </CardDescription>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge className="bg-slate-100 text-slate-700 border-slate-300 font-semibold px-2.5 py-1">
+                {registrations.length} {registrations.length === 1 ? 'Candidate' : 'Candidates'} Enrolled
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchRegistrations(selectedBatchId)}
+                disabled={loadingRegistrations}
+                title="Refresh Roster"
+                className="h-8 px-2.5 text-xs text-slate-600"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingRegistrations ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Filter & Search Bar */}
+          <div className="mt-4 flex flex-col sm:flex-row items-center gap-3 pt-3 border-t border-slate-200/60">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                value={rosterSearch}
+                onChange={(e) => setRosterSearch(e.target.value)}
+                placeholder="Search registered candidate by ID, name, designation, department..."
+                className="pl-9 h-9 text-sm bg-white"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 w-full sm:w-auto">
+              <Filter className="h-4 w-4 text-slate-400 flex-shrink-0" />
+              <select
+                value={rosterSetFilter}
+                onChange={(e) => setRosterSetFilter(Number(e.target.value))}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm h-9 focus:outline-none focus:ring-1 focus:ring-blue-600 w-full sm:w-auto"
+              >
+                <option value="0">All Question Sets</option>
+                {sets.map((s) => (
+                  <option key={s.setId} value={s.setId}>
+                    {s.setName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50/80">
+                  <TableHead className="w-14">#</TableHead>
+                  <TableHead>Employee ID</TableHead>
+                  <TableHead>Candidate Name</TableHead>
+                  <TableHead>Designation & Dept</TableHead>
+                  <TableHead>Company & Location</TableHead>
+                  <TableHead>Question Set Paper</TableHead>
+                  <TableHead>Target Grade</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loadingRegistrations ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-12 text-slate-500">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
+                        <span className="text-sm">Loading registered candidates...</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredRegistrations.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-12">
+                      <div className="flex flex-col items-center justify-center space-y-3">
+                        <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                          <Users className="h-6 w-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-slate-700">
+                            {rosterSearch.trim() || rosterSetFilter > 0
+                              ? 'No candidates match the search filters'
+                              : 'No candidates registered in this batch yet'}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {rosterSearch.trim() || rosterSetFilter > 0
+                              ? 'Try clearing the search text or set filter'
+                              : 'Search and confirm an employee registration above to add them to this batch roster.'}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRegistrations.map((r, index) => (
+                    <TableRow key={r.examineeId} className="hover:bg-slate-50/60 transition-colors">
+                      <TableCell className="font-mono text-xs text-slate-400">{index + 1}</TableCell>
+                      <TableCell className="font-mono text-xs font-bold text-blue-600">
+                        {r.loginId}
+                      </TableCell>
+                      <TableCell className="font-medium text-slate-900">
+                        {r.examineeName}
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-600">
+                        <div className="font-medium text-slate-800">{r.designation || '—'}</div>
+                        <div className="text-slate-400">{r.departmentName || '—'}</div>
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-600">
+                        <div className="font-medium text-slate-800">{r.companyName || '—'}</div>
+                        <div className="text-slate-400">{r.locationName || '—'}</div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium">
+                          {r.setName || 'Default Set'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-700">
+                        {r.examGradeName || r.gradeName || '—'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {r.isExamEnd ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">
+                            Completed
+                          </Badge>
+                        ) : r.isAttand ? (
+                          <Badge className="bg-amber-100 text-amber-800 border-amber-300">
+                            Exam Started
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-blue-50 text-blue-700 border-blue-200">
+                            Enrolled
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

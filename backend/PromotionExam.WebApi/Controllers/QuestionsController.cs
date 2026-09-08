@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PromotionExam.Application.Common.Ai;
 using PromotionExam.Application.Common.Interfaces;
+using PromotionExam.Application.DTOs.Marking;
 using PromotionExam.Application.DTOs.Questions;
 using PromotionExam.Domain.Entities;
 using PromotionExam.Infrastructure.Data;
@@ -42,11 +43,17 @@ namespace PromotionExam.WebApi.Controllers
 
         #region Question Sets
         [HttpGet("sets")]
-        public async Task<IActionResult> GetSets()
+        public async Task<IActionResult> GetSets([FromQuery] bool includeInactive = false)
         {
             var lookups = await _context.SysLookups.ToDictionaryAsync(l => l.LookupId, l => l.LookupText);
 
-            var sets = await _context.QuestionSets
+            var query = _context.QuestionSets.AsQueryable();
+            if (!includeInactive)
+            {
+                query = query.Where(s => s.IsActive == true);
+            }
+
+            var sets = await query
                 .OrderByDescending(s => s.SetId)
                 .Select(s => new
                 {
@@ -381,6 +388,167 @@ namespace PromotionExam.WebApi.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        [HttpPost("{id}/standard-answer/generate")]
+        public async Task<IActionResult> GenerateStandardAnswer(int id)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var answer = await _aiMarkingService.GenerateStandardAnswerAsync(id, userId);
+
+                var actor = await _context.SysUserRegistrations.FindAsync(userId);
+                var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                await _activityService.LogAsync(
+                    userId,
+                    actor?.LoginId ?? userId.ToString(),
+                    actor?.Name ?? "User",
+                    "Admin",
+                    "AI_MARKING",
+                    "AI_GENERATE_STANDARD_ANSWER",
+                    $"Generated standard reference answer for Question #{id} using Google Gemini.",
+                    ip);
+
+                return Ok(new GenerateStandardAnswerResponseDto
+                {
+                    QuestionId = id,
+                    StandardAnswer = answer,
+                    Message = "Standard model answer generated successfully using Google Gemini."
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("sets/{setId}/generate-rubrics")]
+        public async Task<IActionResult> GenerateSetRubrics(
+            int setId,
+            [FromQuery] bool onlyMissing = true,
+            [FromQuery] bool forceRegenerate = false)
+        {
+            var questionSet = await _context.QuestionSets.FindAsync(setId);
+            if (questionSet == null)
+                return NotFound(new { message = "Question Set not found." });
+
+            var narrativeQuestions = await _context.QuestionBanks
+                .Where(q => q.SetId == setId && q.TypeId == 2)
+                .OrderBy(q => q.QuestionId)
+                .ToListAsync();
+
+            if (!narrativeQuestions.Any())
+            {
+                return Ok(new
+                {
+                    setId,
+                    setName = questionSet.SetName,
+                    totalQuestions = 0,
+                    generatedCount = 0,
+                    skippedCount = 0,
+                    failedCount = 0,
+                    results = new List<object>()
+                });
+            }
+
+            var questionIds = narrativeQuestions.Select(q => q.QuestionId).ToList();
+            var activeRubrics = await _context.AiRubricMasters
+                .Where(r => questionIds.Contains(r.QuestionId) && r.IsActive)
+                .GroupBy(r => r.QuestionId)
+                .Select(g => g.OrderByDescending(x => x.VersionNo).First())
+                .ToDictionaryAsync(r => r.QuestionId, r => r);
+
+            var userId = GetCurrentUserId();
+            var results = new List<object>();
+            int generatedCount = 0;
+            int skippedCount = 0;
+            int failedCount = 0;
+
+            foreach (var q in narrativeQuestions)
+            {
+                if (string.IsNullOrWhiteSpace(q.NarrativeAnswer))
+                {
+                    skippedCount++;
+                    results.Add(new
+                    {
+                        questionId = q.QuestionId,
+                        question = q.Question,
+                        status = "Skipped",
+                        message = "Standard model answer is missing. Please define a standard answer first."
+                    });
+                    continue;
+                }
+
+                bool hasRubric = activeRubrics.TryGetValue(q.QuestionId, out var existingRubric);
+                var fingerprint = AiRubricFingerprint.Create(q.Question, q.NarrativeAnswer, q.Marks);
+                bool isOutdated = hasRubric && !string.Equals(existingRubric!.RubricHash, fingerprint, StringComparison.OrdinalIgnoreCase);
+
+                if (onlyMissing && hasRubric && !isOutdated && !forceRegenerate)
+                {
+                    skippedCount++;
+                    results.Add(new
+                    {
+                        questionId = q.QuestionId,
+                        question = q.Question,
+                        status = "AlreadyGenerated",
+                        versionNo = existingRubric!.VersionNo,
+                        message = "Rubric already exists and is up to date."
+                    });
+                    continue;
+                }
+
+                try
+                {
+                    bool shouldForce = forceRegenerate || isOutdated;
+                    var rubric = await _aiMarkingService.GenerateQuestionRubricAsync(q.QuestionId, shouldForce, userId);
+                    generatedCount++;
+                    results.Add(new
+                    {
+                        questionId = q.QuestionId,
+                        question = q.Question,
+                        status = "Generated",
+                        versionNo = rubric.VersionNo,
+                        criteriaCount = rubric.Criteria.Count,
+                        rubricSummary = rubric.RubricSummary,
+                        message = shouldForce ? "Rubric regenerated successfully." : "Rubric generated successfully."
+                    });
+                }
+                catch (Exception ex)
+                {
+                    failedCount++;
+                    results.Add(new
+                    {
+                        questionId = q.QuestionId,
+                        question = q.Question,
+                        status = "Failed",
+                        message = ex.Message
+                    });
+                }
+            }
+
+            var actor = await _context.SysUserRegistrations.FindAsync(userId);
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+            await _activityService.LogAsync(
+                userId,
+                actor?.LoginId ?? userId.ToString(),
+                actor?.Name ?? "User",
+                "Admin",
+                "AI_MARKING",
+                "AI_RUBRIC_BATCH_GENERATE",
+                $"AI rubric batch generated for Question Set #{setId} ({questionSet.SetName}): {generatedCount} generated, {skippedCount} skipped, {failedCount} failed.",
+                ip);
+
+            return Ok(new
+            {
+                setId,
+                setName = questionSet.SetName,
+                totalQuestions = narrativeQuestions.Count,
+                generatedCount,
+                skippedCount,
+                failedCount,
+                results
+            });
         }
 
         [HttpDelete("{id}")]

@@ -20,12 +20,12 @@ namespace PromotionExam.WebApi.Controllers
     public class MarkingController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        private readonly PromotionExam.Application.Common.Interfaces.IUserActivityService _activityService;
+        private readonly IUserActivityService _activityService;
         private readonly IAiMarkingService _aiMarkingService;
 
         public MarkingController(
             ApplicationDbContext context,
-            PromotionExam.Application.Common.Interfaces.IUserActivityService activityService,
+            IUserActivityService activityService,
             IAiMarkingService aiMarkingService)
         {
             _context = context;
@@ -320,6 +320,57 @@ namespace PromotionExam.WebApi.Controllers
                     ip);
 
                 return Ok(evaluation);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("examinee/{examineeId}/auto-mark")]
+        public async Task<IActionResult> AutoMarkExaminee(int examineeId, [FromBody] AutoMarkExamineeRequestDto? dto)
+        {
+            var examinerId = GetCurrentExaminerId();
+            if (examinerId <= 0)
+                return Unauthorized(new { message = "Examiner authentication required." });
+
+            var reg = await _context.ExamRegistrations
+                .Include(r => r.User)
+                .Include(r => r.Batch)
+                .FirstOrDefaultAsync(r => r.ExamineeId == examineeId);
+
+            if (reg == null)
+                return NotFound(new { message = "Examinee registration not found." });
+
+            var (isFinalized, approverFlow, approverUser, _) = await CheckIsMarkingFinalizedAsync(reg);
+            bool autoApply = dto?.AutoApplyScores ?? true;
+
+            // If finalized and current examiner is not the Final Approver, do not allow applying scores
+            if (isFinalized && examinerId != approverFlow?.ExaminerId && autoApply)
+            {
+                return BadRequest(new { 
+                    message = $"Marking for this candidate has been finalized by the Final Approver ({approverUser?.Name ?? "Final Approver"}). Scores cannot be overwritten." 
+                });
+            }
+
+            try
+            {
+                var forceReevaluate = dto?.ForceReevaluate ?? false;
+                var result = await _aiMarkingService.AutoMarkExamineeAsync(examineeId, forceReevaluate, autoApply, examinerId);
+
+                var examiner = await _context.SysUserRegistrations.FindAsync(examinerId);
+                var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                await _activityService.LogAsync(
+                    examinerId,
+                    examiner?.LoginId ?? examinerId.ToString(),
+                    examiner?.Name ?? "Examiner",
+                    "Admin",
+                    "AI_MARKING",
+                    "AI_AUTO_MARK_EXAMINEE",
+                    $"AI auto-marked Examinee #{examineeId} ({reg.User?.Name ?? "Candidate"}): {result.EvaluatedCount}/{result.TotalQuestions} questions evaluated, awarded {result.TotalAwardedMarks:F2}/{result.TotalMaxMarks:F2} marks (Scores Applied: {result.ScoresApplied}).",
+                    ip);
+
+                return Ok(result);
             }
             catch (InvalidOperationException ex)
             {

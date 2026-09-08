@@ -79,4 +79,44 @@ namespace PromotionExam.Application.DTOs.Marking
         public int QuestionId { get; set; }
         public bool ForceReevaluate { get; set; }
     }
+
+    public class AutoMarkExamineeRequestDto
+    {
+        public bool ForceReevaluate { get; set; } = false;
+        public bool AutoApplyScores { get; set; } = true;
+    }
+
+    public class QuestionAutoMarkItemDto
+    {
+        public int QuestionId { get; set; }
+        public string Question { get; set; } = string.Empty;
+        public decimal MaxMarks { get; set; }
+        public decimal AwardedMarks { get; set; }
+        public string Status { get; set; } = string.Empty; // "Evaluated", "RubricGeneratedAndEvaluated", "EmptyAnswer", "Error"
+        public string? Remarks { get; set; }
+        public AiNarrativeEvaluationDto? Evaluation { get; set; }
+    }
+
+    public class AutoMarkExamineeResultDto
+    {
+        public int ExamineeId { get; set; }
+        public string ExamineeName { get; set; } = string.Empty;
+        public string LoginId { get; set; } = string.Empty;
+        public int TotalQuestions { get; set; }
+        public int EvaluatedCount { get; set; }
+        public int SkippedCount { get; set; }
+        public decimal TotalAwardedMarks { get; set; }
+        public decimal TotalMaxMarks { get; set; }
+        public bool ScoresApplied { get; set; }
+        public decimal? TotalWrittenScore { get; set; }
+        public List<QuestionAutoMarkItemDto> Questions { get; set; } = new();
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class GenerateStandardAnswerResponseDto
+    {
+        public int QuestionId { get; set; }
+        public string StandardAnswer { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+    }
 }

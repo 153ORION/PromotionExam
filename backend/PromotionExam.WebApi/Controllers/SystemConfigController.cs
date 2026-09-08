@@ -23,15 +23,21 @@ namespace PromotionExam.WebApi.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _env;
         private readonly IUserActivityService _activityService;
+        private readonly ICryptographyService _cryptographyService;
+        private readonly IAiMarkingService _aiMarkingService;
 
         public SystemConfigController(
             ApplicationDbContext context,
             IWebHostEnvironment env,
-            IUserActivityService activityService)
+            IUserActivityService activityService,
+            ICryptographyService cryptographyService,
+            IAiMarkingService aiMarkingService)
         {
             _context = context;
             _env = env;
             _activityService = activityService;
+            _cryptographyService = cryptographyService;
+            _aiMarkingService = aiMarkingService;
         }
 
         [HttpGet]
@@ -70,8 +76,32 @@ namespace PromotionExam.WebApi.Controllers
                 WebsiteUrl = config.WebsiteUrl,
                 LogoUrl = config.LogoUrl,
                 ExamTermsNotice = config.ExamTermsNotice,
+                HasGeminiApiKey = !string.IsNullOrWhiteSpace(config.GeminiApiKey ?? config.OpenAiApiKey),
+                HasOpenAiApiKey = !string.IsNullOrWhiteSpace(config.OpenAiApiKey),
                 LastUpdatedDate = config.LastUpdatedDate,
                 UpdatedBy = config.UpdatedBy
+            });
+        }
+
+        [HttpGet("secrets")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> GetSecrets()
+        {
+            var config = await _context.SysCompanyConfigs.OrderBy(c => c.ConfigId).FirstOrDefaultAsync();
+
+            var activeEncryptedKey = config?.GeminiApiKey ?? config?.OpenAiApiKey;
+            var decryptedKey = string.IsNullOrWhiteSpace(activeEncryptedKey)
+                ? string.Empty
+                : _cryptographyService.DecryptLegacy(activeEncryptedKey);
+
+            return Ok(new SystemConfigSecretsDto
+            {
+                HasGeminiApiKey = !string.IsNullOrWhiteSpace(activeEncryptedKey),
+                GeminiApiKey = decryptedKey,
+                HasOpenAiApiKey = !string.IsNullOrWhiteSpace(config?.OpenAiApiKey),
+                OpenAiApiKey = string.IsNullOrWhiteSpace(config?.OpenAiApiKey)
+                    ? string.Empty
+                    : _cryptographyService.DecryptLegacy(config!.OpenAiApiKey)
             });
         }
 
@@ -97,6 +127,18 @@ namespace PromotionExam.WebApi.Controllers
             if (!string.IsNullOrWhiteSpace(dto.LogoUrl))
             {
                 config.LogoUrl = dto.LogoUrl;
+            }
+            if (dto.GeminiApiKey != null)
+            {
+                config.GeminiApiKey = string.IsNullOrWhiteSpace(dto.GeminiApiKey)
+                    ? null
+                    : _cryptographyService.EncryptLegacy(dto.GeminiApiKey.Trim());
+            }
+            if (dto.OpenAiApiKey != null)
+            {
+                config.OpenAiApiKey = string.IsNullOrWhiteSpace(dto.OpenAiApiKey)
+                    ? null
+                    : _cryptographyService.EncryptLegacy(dto.OpenAiApiKey.Trim());
             }
 
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -131,9 +173,19 @@ namespace PromotionExam.WebApi.Controllers
                 WebsiteUrl = config.WebsiteUrl,
                 LogoUrl = config.LogoUrl,
                 ExamTermsNotice = config.ExamTermsNotice,
+                HasGeminiApiKey = !string.IsNullOrWhiteSpace(config.GeminiApiKey ?? config.OpenAiApiKey),
+                HasOpenAiApiKey = !string.IsNullOrWhiteSpace(config.OpenAiApiKey),
                 LastUpdatedDate = config.LastUpdatedDate,
                 UpdatedBy = config.UpdatedBy
             });
+        }
+
+        [HttpPost("test-gemini-key")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> TestGeminiKey([FromBody] TestGeminiKeyRequestDto? dto)
+        {
+            var (success, message) = await _aiMarkingService.TestGeminiConnectionAsync(dto?.ApiKey);
+            return Ok(new { success, message });
         }
 
         [HttpPost("upload-logo")]

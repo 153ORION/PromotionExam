@@ -32,10 +32,11 @@ export const QuestionMCQPage: React.FC = () => {
   const fetchSets = async () => {
     try {
       const res = await api.get('/questions/sets');
-      setSets(res.data);
-      if (res.data.length > 0 && selectedSetId === 0) {
-        setSelectedSetId(res.data[0].setId);
-        setFormSetId(res.data[0].setId);
+      const activeSets = (res.data || []).filter((s: QuestionSet) => s.isActive !== false);
+      setSets(activeSets);
+      if (activeSets.length > 0 && selectedSetId === 0) {
+        setSelectedSetId(activeSets[0].setId);
+        setFormSetId(activeSets[0].setId);
       }
     } catch (err) {
       console.error(err);
