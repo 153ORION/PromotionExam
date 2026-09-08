@@ -114,11 +114,11 @@ using (var scope = app.Services.CreateScope())
 }
 
 // 8. Configure HTTP Request Pipeline
-if (app.Environment.IsDevelopment())
-{
+//if (app.Environment.IsDevelopment())
+//{
     app.UseSwagger();
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Promotion Exam Core API v1"));
-}
+//}
 
 app.UseCors("CorsPolicy");
 app.UseStaticFiles();
@@ -128,9 +128,9 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-//if (app.Environment.IsDevelopment())
-//{
+if (app.Environment.IsDevelopment())
+{
     app.MapGet("/", () => Results.Redirect("/swagger"));
-//}
+}
 
 app.Run();
