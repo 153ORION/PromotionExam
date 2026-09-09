@@ -21,6 +21,7 @@ namespace PromotionExam.Application.DTOs.Marking
         public bool IsFinalized { get; set; }
         public string? FinalApproverName { get; set; }
         public decimal? FinalApproverScore { get; set; }
+        public int TotalQuestionsCount { get; set; }
     }
 
     public class ExaminerScorePreviewDto

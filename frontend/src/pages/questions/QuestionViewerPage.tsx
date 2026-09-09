@@ -11,7 +11,7 @@ export const QuestionViewerPage: React.FC = () => {
   const [selectedSetId, setSelectedSetId] = useState<number>(0);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [filterType, setFilterType] = useState<number>(0); // 0 = all, 1 = mcq, 2 = narrative
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchSets = async () => {
@@ -19,9 +19,6 @@ export const QuestionViewerPage: React.FC = () => {
         const res = await api.get('/questions/sets');
         const activeSets = (res.data || []).filter((s: QuestionSet) => s.isActive !== false);
         setSets(activeSets);
-        if (activeSets.length > 0) {
-          setSelectedSetId(activeSets[0].setId);
-        }
       } catch (err) {
         console.error(err);
       }
@@ -48,6 +45,9 @@ export const QuestionViewerPage: React.FC = () => {
         }
       };
       fetchQuestions();
+    } else {
+      setQuestions([]);
+      setLoading(false);
     }
   }, [selectedSetId, filterType]);
 
@@ -68,7 +68,7 @@ export const QuestionViewerPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900">Question Viewer</h2>
           <p className="text-sm text-slate-500">Preview formatted question sets for review, moderation, or printing.</p>
         </div>
-        <Button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1">
+        <Button onClick={handlePrint} disabled={selectedSetId === 0} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1 disabled:opacity-50">
           <Printer className="h-4 w-4" />
           <span>Print / Export PDF</span>
         </Button>
@@ -78,12 +78,13 @@ export const QuestionViewerPage: React.FC = () => {
       <Card className="p-4 border-slate-200 shadow-sm bg-slate-50/50 no-print">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center space-x-2">
-            <span className="text-sm font-semibold text-slate-700">Set:</span>
+            <span className="text-sm font-semibold text-slate-700">Question Set:</span>
             <select
               value={selectedSetId}
               onChange={(e) => setSelectedSetId(Number(e.target.value))}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm"
             >
+              <option value="0">-- Select Set --</option>
               {sets.map((s) => (
                 <option key={s.setId} value={s.setId}>
                   {s.setName}
@@ -93,7 +94,7 @@ export const QuestionViewerPage: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2">
-            <span className="text-sm font-semibold text-slate-700">Filter:</span>
+            <span className="text-sm font-semibold text-slate-700">Question Type:</span>
             <select
               value={filterType}
               onChange={(e) => setFilterType(Number(e.target.value))}
@@ -114,22 +115,32 @@ export const QuestionViewerPage: React.FC = () => {
       </Card>
 
       {/* Printable Paper Document */}
-      <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-4xl mx-auto space-y-6 print:p-0 print:border-none print:shadow-none">
-        <div className="text-center border-b pb-6 space-y-2">
-          <h2 className="text-xl font-bold uppercase tracking-wide text-slate-900">
-            Orion Group - Promotion Examination
-          </h2>
-          <h3 className="text-base font-semibold text-blue-800">{selectedSet?.setName || 'Question Paper'}</h3>
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs text-slate-500 pt-1">
-            <span>Location: <strong>{selectedSet?.locationName || 'All'}</strong></span>
-            <span>Department: <strong>{selectedSet?.departmentName || 'All'}</strong></span>
-            <span>Grade: <strong>{selectedSet?.gradeName || 'All'}</strong></span>
-            {selectedSet?.concentrationName && (
-              <span>Concentration: <strong>{selectedSet.concentrationName}</strong></span>
-            )}
-            <span>Total Marks: <strong>{totalMarks}</strong></span>
+      {selectedSetId === 0 ? (
+        <Card className="p-12 text-center border-slate-200 shadow-sm bg-white no-print">
+          <div className="max-w-md mx-auto space-y-2">
+            <h3 className="text-base font-semibold text-slate-800">Please Select a Question Set</h3>
+            <p className="text-sm text-slate-500">
+              Select a question set from the dropdown above to view, preview, or print the formatted examination paper.
+            </p>
           </div>
-        </div>
+        </Card>
+      ) : (
+        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-4xl mx-auto space-y-6 print:p-0 print:border-none print:shadow-none">
+          <div className="text-center border-b pb-6 space-y-2">
+            <h2 className="text-xl font-bold uppercase tracking-wide text-slate-900">
+              Orion Group - Promotion Examination
+            </h2>
+            <h3 className="text-base font-semibold text-blue-800">{selectedSet?.setName || 'Question Paper'}</h3>
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs text-slate-500 pt-1">
+              <span>Location: <strong>{selectedSet?.locationName || 'All'}</strong></span>
+              <span>Department: <strong>{selectedSet?.departmentName || 'All'}</strong></span>
+              <span>Grade: <strong>{selectedSet?.gradeName || 'All'}</strong></span>
+              {selectedSet?.concentrationName && (
+                <span>Concentration: <strong>{selectedSet.concentrationName}</strong></span>
+              )}
+              <span>Total Marks: <strong>{totalMarks}</strong></span>
+            </div>
+          </div>
 
         {loading ? (
           <div className="py-12 text-center text-slate-400">Loading paper content...</div>
@@ -176,6 +187,7 @@ export const QuestionViewerPage: React.FC = () => {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

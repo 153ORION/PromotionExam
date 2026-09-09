@@ -5,37 +5,27 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, GitBranch } from 'lucide-react';
+import { Plus, Trash2, GitBranch, Filter } from 'lucide-react';
 import { Flowpath, ExamBatch, QuestionSet } from '@/types';
 
 export const FlowPathPage: React.FC = () => {
   const [flowpaths, setFlowpaths] = useState<Flowpath[]>([]);
   const [batches, setBatches] = useState<ExamBatch[]>([]);
   const [sets, setSets] = useState<QuestionSet[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Filters
   const [selectedBatchId, setSelectedBatchId] = useState<number>(0);
   const [selectedSetId, setSelectedSetId] = useState<number>(0);
 
+  // On mount: load only batches
   useEffect(() => {
     const initData = async () => {
       try {
-        const [resBatches, resSets] = await Promise.all([
-          api.get('/batches'),
-          api.get('/questions/sets')
-        ]);
+        const resBatches = await api.get('/batches');
         const activeBatches = (resBatches.data || []).filter((b: ExamBatch) => b.isActive !== false);
         setBatches(activeBatches);
-        if (activeBatches.length > 0) {
-          setSelectedBatchId(activeBatches[0].batchId);
-        }
-
-        const activeSets = (resSets.data || []).filter((s: QuestionSet) => s.isActive !== false);
-        setSets(activeSets);
-        if (activeSets.length > 0) {
-          setSelectedSetId(activeSets[0].setId);
-        }
+        // Do NOT auto-select — start with "-- Select Batch --"
       } catch (err) {
         console.error(err);
       }
@@ -43,7 +33,34 @@ export const FlowPathPage: React.FC = () => {
     initData();
   }, []);
 
+  // When batch changes: load sets and reset set selection
+  const handleBatchChange = async (batchId: number) => {
+    setSelectedBatchId(batchId);
+    setSelectedSetId(0);
+    setSets([]);
+    setFlowpaths([]);
+
+    if (batchId <= 0) return;
+
+    try {
+      const resSets = await api.get('/questions/sets');
+      const activeSets = (resSets.data || []).filter((s: QuestionSet) => s.isActive !== false);
+      setSets(activeSets);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // When set changes
+  const handleSetChange = (setId: number) => {
+    setSelectedSetId(setId);
+    if (setId <= 0) {
+      setFlowpaths([]);
+    }
+  };
+
   const fetchFlowpaths = async () => {
+    if (selectedSetId <= 0) return;
     setLoading(true);
     try {
       const res = await api.get('/flowpaths', {
@@ -61,7 +78,11 @@ export const FlowPathPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchFlowpaths();
+    if (selectedSetId > 0) {
+      fetchFlowpaths();
+    } else {
+      setFlowpaths([]);
+    }
   }, [selectedBatchId, selectedSetId]);
 
   const handleDelete = async (id: number) => {
@@ -98,13 +119,13 @@ export const FlowPathPage: React.FC = () => {
       <Card className="p-4 border-slate-200 shadow-sm bg-slate-50/50">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center space-x-2">
-            <span className="text-sm font-semibold text-slate-700">Batch:</span>
+            <span className="text-sm font-semibold text-slate-700">Examination Batch:</span>
             <select
               value={selectedBatchId}
-              onChange={(e) => setSelectedBatchId(Number(e.target.value))}
+              onChange={(e) => handleBatchChange(Number(e.target.value))}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-600 focus:outline-none"
             >
-              <option value="0">-- All Batches --</option>
+              <option value={0}>-- Select Batch --</option>
               {batches.map((b) => (
                 <option key={b.batchId} value={b.batchId}>
                   {b.examName}
@@ -114,13 +135,14 @@ export const FlowPathPage: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2">
-            <span className="text-sm font-semibold text-slate-700">Set:</span>
+            <span className="text-sm font-semibold text-slate-700">Question Set:</span>
             <select
               value={selectedSetId}
-              onChange={(e) => setSelectedSetId(Number(e.target.value))}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-600 focus:outline-none"
+              onChange={(e) => handleSetChange(Number(e.target.value))}
+              disabled={selectedBatchId <= 0}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="0">-- All Sets --</option>
+              <option value={0}>-- Select Set --</option>
               {sets.map((s) => (
                 <option key={s.setId} value={s.setId}>
                   {s.setName}
@@ -143,7 +165,7 @@ export const FlowPathPage: React.FC = () => {
               <TableRow>
                 <TableHead className="w-16">Rank</TableHead>
                 <TableHead>Examiner / Faculty</TableHead>
-                <TableHead>Designation & Dept</TableHead>
+                <TableHead>Designation &amp; Dept</TableHead>
                 <TableHead>Batch</TableHead>
                 <TableHead>Paper Set</TableHead>
                 <TableHead>Role</TableHead>
@@ -151,7 +173,27 @@ export const FlowPathPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {selectedBatchId <= 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-slate-500 space-y-2">
+                    <GitBranch className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-600">Select an Exam Batch to continue</p>
+                    <p className="text-xs text-slate-400">
+                      Choose a batch from the filter above, then select a question set to view its flow path.
+                    </p>
+                  </TableCell>
+                </TableRow>
+              ) : selectedSetId <= 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-slate-500 space-y-2">
+                    <Filter className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-600">Select a Question Set to view examiners</p>
+                    <p className="text-xs text-slate-400">
+                      Choose a question set from the filter above to see the assigned evaluation path.
+                    </p>
+                  </TableCell>
+                </TableRow>
+              ) : loading ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-slate-500">
                     Loading flow paths...

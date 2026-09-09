@@ -21,7 +21,6 @@ import {
   Clock,
   UserX, 
   UserPlus, 
-  UserCheck,
   ShieldCheck,
   FileText,
   Activity,
@@ -90,7 +89,6 @@ export const Sidebar: React.FC = () => {
             <div className="mt-1 space-y-1 pl-2">
               <SidebarItem to="/viewer/search-examinee" icon={<Search className="h-4 w-4" />} label="Search Examinee" />
               <SidebarItem to="/question-bank/viewer" icon={<FileQuestion className="h-4 w-4" />} label="Question Viewer" />
-              <SidebarItem to="/viewer/results" icon={<Award className="h-4 w-4" />} label="Result Viewer" />
             </div>
           )}
         </div>
@@ -140,7 +138,6 @@ export const Sidebar: React.FC = () => {
           {openSections.marking && (
             <div className="mt-1 space-y-1 pl-2">
               <SidebarItem to="/marking/flow-path" icon={<GitBranch className="h-4 w-4" />} label="Flow Path" />
-              <SidebarItem to="/marking/assign-examiner" icon={<UserCheck className="h-4 w-4" />} label="Assign Examiner" />
               <SidebarItem to="/marking/narrative-score" icon={<Award className="h-4 w-4" />} label="Narrative Score" />
             </div>
           )}

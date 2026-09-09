@@ -203,6 +203,7 @@ export interface NarrativeCandidate {
   isFinalized?: boolean;
   finalApproverName?: string;
   finalApproverScore?: number;
+  totalQuestionsCount?: number;
 }
 
 export interface ExaminerScorePreview {

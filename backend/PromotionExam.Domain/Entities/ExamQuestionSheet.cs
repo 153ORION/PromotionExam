@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PromotionExam.Domain.Entities
 {
-    [Table("Exam_Question_Sheet")]
+    [Table("Examination Question Sheet")]
     public class ExamQuestionSheet
     {
         [Key]

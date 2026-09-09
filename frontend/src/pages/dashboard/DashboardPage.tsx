@@ -5,7 +5,7 @@ import { useSystemConfig } from '@/context/SystemConfigContext';
 import { CompanyLogo } from '@/components/ui/CompanyLogo';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, FileText, CheckSquare, Award, HelpCircle, ArrowRight, Shield, Layers, Clock } from 'lucide-react';
+import { Users, FileText, CheckSquare, Award, HelpCircle, ArrowRight, Shield, Layers, Clock, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DashboardStats } from '@/types';
 
@@ -131,13 +131,13 @@ export const DashboardPage: React.FC = () => {
             icon={<Clock className="h-6 w-6 text-amber-600" />}
           />
           <QuickCard
-            title="Results & Transcripts"
-            description="View candidate performance leaderboards and generate official printable scorecards."
-            to="/viewer/results"
-            icon={<FileText className="h-6 w-6 text-rose-600" />}
+            title="Search Examinee Records"
+            description="Query and lookup registered candidate test records, scores, and answer papers."
+            to="/viewer/search-examinee"
+            icon={<Search className="h-6 w-6 text-rose-600" />}
           />
           <QuickCard
-            title="Master Data & Lookups"
+            title="System Data & Lookups"
             description="Configure system dropdown options: departments, companies, grades, and locations."
             to="/admin/lookups"
             icon={<Shield className="h-6 w-6 text-indigo-600" />}

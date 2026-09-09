@@ -34,7 +34,6 @@ import { NarrativeScorePage } from '@/pages/marking/NarrativeScorePage';
 
 // Viewer & Results
 import { SearchExamineePage } from '@/pages/viewer/SearchExamineePage';
-import { ResultViewerPage } from '@/pages/viewer/ResultViewerPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 
 // Candidate Assessment Portal
@@ -60,7 +59,6 @@ export const App: React.FC = () => {
                 {/* Viewer Module */}
                 <Route path="/viewer/search-examinee" element={<SearchExamineePage />} />
                 <Route path="/question-bank/viewer" element={<QuestionViewerPage />} />
-                <Route path="/viewer/results" element={<ResultViewerPage />} />
 
                 {/* Question Bank Module */}
                 <Route path="/question-bank/sets" element={<QuestionSetsPage />} />

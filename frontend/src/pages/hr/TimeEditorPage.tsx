@@ -137,7 +137,7 @@ export const TimeEditorPage: React.FC = () => {
                 >
                   {registrations.map((r) => (
                     <option key={r.examineeId} value={r.examineeId}>
-                      {r.examineeName} ({r.loginId}) - Batch: {r.batchName}
+                      {r.examineeName} ({r.loginId}) - Examination Batch: {r.batchName}
                     </option>
                   ))}
                 </select>

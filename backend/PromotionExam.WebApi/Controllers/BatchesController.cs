@@ -207,9 +207,9 @@ namespace PromotionExam.WebApi.Controllers
                 }
                 batch.ExamDuration = (batch.ExamDuration ?? 0) + request.ExtraMinutes;
 
-                // Also extend for active registrations in this batch
+                // Also extend for active registrations in this batch (Item 13: IsActive = 1 only)
                 var activeRegs = await _context.ExamRegistrations
-                    .Where(r => r.BatchId == request.BatchId.Value && r.IsExamEnd != true)
+                    .Where(r => r.BatchId == request.BatchId.Value && r.IsExamEnd != true && r.IsActive == true)
                     .ToListAsync();
 
                 foreach (var r in activeRegs)

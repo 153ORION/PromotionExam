@@ -42,29 +42,40 @@ namespace PromotionExam.WebApi.Controllers
 
         private async Task<List<QuestionBank>> GetCandidateNarrativeQuestionsListAsync(ExamRegistration reg)
         {
-            var assignedQuestionIds = await _context.ExamQuestionSheets
-                .Where(s => s.ExamineeId == reg.ExamineeId && s.IsActive == true)
-                .OrderBy(s => s.QuestionSeq)
-                .Select(s => s.QuestionId)
-                .ToListAsync();
+            // 1. Primary source: questions assigned in Examination Question Sheet
+            var assignedQuestions = await (from s in _context.ExamQuestionSheets
+                                           join q in _context.QuestionBanks on s.QuestionId equals q.QuestionId
+                                           where s.ExamineeId == reg.ExamineeId && q.TypeId == 2
+                                           orderby s.QuestionSeq, s.QuestionId
+                                           select q)
+                                           .ToListAsync();
 
-            if (assignedQuestionIds.Any())
+            if (assignedQuestions.Any())
             {
-                var questions = await _context.QuestionBanks
-                    .Where(q => assignedQuestionIds.Contains(q.QuestionId) && q.TypeId == 2 && q.IsActive == true)
-                    .ToListAsync();
-
-                return assignedQuestionIds
-                    .Select(id => questions.FirstOrDefault(q => q.QuestionId == id))
-                    .Where(q => q != null)
-                    .Cast<QuestionBank>()
+                return assignedQuestions
+                    .GroupBy(q => q.QuestionId)
+                    .Select(g => g.First())
                     .ToList();
             }
 
-            return await _context.QuestionBanks
-                .Where(q => q.SetId == reg.QuestionSetId && q.TypeId == 2 && q.IsActive == true)
-                .OrderBy(q => q.QuestionId)
-                .ToListAsync();
+            // 2. Fallback: if Examination Question Sheet has no records for this examinee, check if they answered narrative questions in Exam_Answer_Sheet
+            var answeredQuestions = await (from a in _context.ExamAnswerSheets
+                                           join q in _context.QuestionBanks on a.QuestionId equals q.QuestionId
+                                           where a.ExamineeId == reg.ExamineeId && q.TypeId == 2
+                                           orderby a.EAS_Id
+                                           select q)
+                                           .ToListAsync();
+
+            if (answeredQuestions.Any())
+            {
+                return answeredQuestions
+                    .GroupBy(q => q.QuestionId)
+                    .Select(g => g.First())
+                    .ToList();
+            }
+
+            // 3. Do not dump the entire question set: an examinee without assigned or answered questions has 0 questions to mark.
+            return new List<QuestionBank>();
         }
 
         private async Task<(bool isFinalized, SysFlowpath? approverFlow, SysUserRegistration? approverUser, decimal? approverTotalScore)> CheckIsMarkingFinalizedAsync(ExamRegistration reg, List<ExamNarrativeScore>? preloadedScores = null)
@@ -101,7 +112,7 @@ namespace PromotionExam.WebApi.Controllers
             var examinerId = GetCurrentExaminerId();
 
             var examinees = await _context.ExamRegistrations
-                .Where(r => r.BatchId == batchId && r.QuestionSetId == setId)
+                .Where(r => r.BatchId == batchId && r.QuestionSetId == setId && r.IsActive == true)   // Item 13: only active registrations
                 .Include(r => r.User)
                 .ToListAsync();
 
@@ -162,7 +173,8 @@ namespace PromotionExam.WebApi.Controllers
                     AvgNarrativeScore = candidateScores.Any() ? Math.Round(avgScore, 2) : null,
                     IsFinalized = isFinalized,
                     FinalApproverName = isFinalized ? approverUser?.Name : null,
-                    FinalApproverScore = approverScoreTotal
+                    FinalApproverScore = approverScoreTotal,
+                    TotalQuestionsCount = totalQuestionsCount
                 });
             }
 

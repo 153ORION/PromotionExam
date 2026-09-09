@@ -13,7 +13,7 @@ export const QuestionMCQPage: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [sets, setSets] = useState<QuestionSet[]>([]);
   const [selectedSetId, setSelectedSetId] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -34,20 +34,21 @@ export const QuestionMCQPage: React.FC = () => {
       const res = await api.get('/questions/sets');
       const activeSets = (res.data || []).filter((s: QuestionSet) => s.isActive !== false);
       setSets(activeSets);
-      if (activeSets.length > 0 && selectedSetId === 0) {
-        setSelectedSetId(activeSets[0].setId);
-        setFormSetId(activeSets[0].setId);
-      }
     } catch (err) {
       console.error(err);
     }
   };
 
   const fetchQuestions = async (setId?: number) => {
+    const sid = setId !== undefined ? setId : selectedSetId;
+    if (!sid || sid <= 0) {
+      setQuestions([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const sid = setId !== undefined ? setId : selectedSetId;
-      const res = await api.get('/questions', { params: { setId: sid > 0 ? sid : undefined, typeId: 1 } });
+      const res = await api.get('/questions', { params: { setId: sid, typeId: 1 } });
       setQuestions(res.data);
     } catch (err) {
       console.error(err);
@@ -63,6 +64,9 @@ export const QuestionMCQPage: React.FC = () => {
   useEffect(() => {
     if (selectedSetId > 0) {
       fetchQuestions(selectedSetId);
+    } else {
+      setQuestions([]);
+      setLoading(false);
     }
   }, [selectedSetId]);
 
@@ -175,7 +179,7 @@ export const QuestionMCQPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">MCQ Questions Master</h2>
+          <h2 className="text-2xl font-bold text-slate-900">MCQ Questions</h2>
           <p className="text-sm text-slate-500">Add, review, and edit multiple choice questions with automated answer keys.</p>
         </div>
         <Button onClick={handleOpenAdd} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1">
@@ -188,7 +192,6 @@ export const QuestionMCQPage: React.FC = () => {
       <Card className="p-4 border-slate-200 shadow-sm bg-slate-50/50">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2 text-sm font-semibold text-slate-700">
-            <Filter className="h-4 w-4 text-blue-600" />
             <span>Select Question Set:</span>
           </div>
           <select
@@ -196,6 +199,7 @@ export const QuestionMCQPage: React.FC = () => {
             onChange={(e) => setSelectedSetId(Number(e.target.value))}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-600 max-w-md"
           >
+            <option value="0">-- Select Set --</option>
             {sets.map((s) => (
               <option key={s.setId} value={s.setId}>
                 {s.setName}
@@ -207,7 +211,16 @@ export const QuestionMCQPage: React.FC = () => {
 
       {/* Question Cards List */}
       <div className="space-y-4">
-        {loading ? (
+        {selectedSetId === 0 ? (
+          <Card className="p-12 text-center border-slate-200 shadow-sm bg-white">
+            <div className="max-w-md mx-auto space-y-2">
+              <h3 className="text-base font-semibold text-slate-800">Please Select a Question Set</h3>
+              <p className="text-sm text-slate-500">
+                Select a question set from the dropdown above to view, edit, and add MCQ questions.
+              </p>
+            </div>
+          </Card>
+        ) : loading ? (
           <Card className="p-8 text-center text-slate-500">Loading MCQ questions...</Card>
         ) : questions.length === 0 ? (
           <Card className="p-8 text-center text-slate-500">

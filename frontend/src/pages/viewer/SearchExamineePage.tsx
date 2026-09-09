@@ -5,9 +5,8 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, Filter, UserCheck, Eye, FileText } from 'lucide-react';
+import { Search, Filter, UserCheck, FileText } from 'lucide-react';
 import { ExamRegistration, ExamBatch } from '@/types';
-import { Link } from 'react-router-dom';
 import { CandidateAnswerPaperModal } from '@/components/exam/CandidateAnswerPaperModal';
 
 export const SearchExamineePage: React.FC = () => {
@@ -15,7 +14,7 @@ export const SearchExamineePage: React.FC = () => {
   const [batches, setBatches] = useState<ExamBatch[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<number>(0);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selectedPaperExamineeId, setSelectedPaperExamineeId] = useState<number | null>(null);
   const [paperModalOpen, setPaperModalOpen] = useState(false);
 
@@ -33,10 +32,15 @@ export const SearchExamineePage: React.FC = () => {
   }, []);
 
   const fetchRegistrations = async () => {
+    if (!selectedBatchId || selectedBatchId <= 0) {
+      setRegistrations([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await api.get('/registrations', {
-        params: { batchId: selectedBatchId > 0 ? selectedBatchId : undefined },
+        params: { batchId: selectedBatchId },
       });
       setRegistrations(res.data);
     } catch (err) {
@@ -63,20 +67,20 @@ export const SearchExamineePage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Search Examinee Records</h2>
+        <h2 className="text-2xl font-bold text-slate-900">Search Examinee</h2>
         <p className="text-sm text-slate-500">Query and lookup registered candidate test records across departments and batches.</p>
       </div>
 
       <Card className="p-4 border-slate-200 shadow-sm bg-slate-50/50">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center space-x-3">
-            <span className="text-sm font-semibold text-slate-700">Exam Batch:</span>
+            <span className="text-sm font-semibold text-slate-700">Examination Batch:</span>
             <select
               value={selectedBatchId}
               onChange={(e) => setSelectedBatchId(Number(e.target.value))}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm"
             >
-              <option value="0">-- All Batches --</option>
+              <option value="0">-- Select Batch --</option>
               {batches.map((b) => (
                 <option key={b.batchId} value={b.batchId}>
                   {b.examName}
@@ -99,7 +103,7 @@ export const SearchExamineePage: React.FC = () => {
 
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle>Candidate Examination Roster</CardTitle>
+          <CardTitle>Examination Candidate</CardTitle>
           <CardDescription>Records matching selected filters ({filteredRegistrations.length})</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -119,7 +123,13 @@ export const SearchExamineePage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {selectedBatchId === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center py-10 text-slate-500">
+                    Please select an Exam Batch to view examinee records.
+                  </TableCell>
+                </TableRow>
+              ) : loading ? (
                 <TableRow>
                   <TableCell colSpan={10} className="text-center py-8 text-slate-500">
                     Loading records...
@@ -128,7 +138,7 @@ export const SearchExamineePage: React.FC = () => {
               ) : filteredRegistrations.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={10} className="text-center py-8 text-slate-500">
-                    No examinees found.
+                    No examinees found in this batch.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -161,7 +171,7 @@ export const SearchExamineePage: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end space-x-2">
-                        {r.isExamEnd && (
+                        {r.isExamEnd ? (
                           <Button
                             size="sm"
                             variant="secondary"
@@ -174,13 +184,9 @@ export const SearchExamineePage: React.FC = () => {
                             <FileText className="h-3.5 w-3.5" />
                             <span>Answer Paper</span>
                           </Button>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
                         )}
-                        <Link to={`/viewer/results?examineeId=${r.examineeId}`}>
-                          <Button size="sm" variant="outline" className="text-xs flex items-center space-x-1">
-                            <Eye className="h-3.5 w-3.5" />
-                            <span>Result</span>
-                          </Button>
-                        </Link>
                       </div>
                     </TableCell>
                   </TableRow>

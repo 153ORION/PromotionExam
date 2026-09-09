@@ -77,9 +77,6 @@ export const QuestionRubricGeneratePage: React.FC = () => {
       const res = await api.get('/questions/sets');
       const activeSets = (res.data || []).filter((s: QuestionSet) => s.isActive !== false);
       setSets(activeSets);
-      if (activeSets.length > 0 && selectedSetId === 0) {
-        setSelectedSetId(activeSets[0].setId);
-      }
     } catch (err) {
       console.error('Failed to load question sets:', err);
     } finally {
@@ -89,7 +86,11 @@ export const QuestionRubricGeneratePage: React.FC = () => {
 
   // Fetch Narrative Questions for selected set
   const fetchQuestions = async (setId: number) => {
-    if (setId <= 0) return;
+    if (setId <= 0) {
+      setQuestions([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setBatchSummary(null);
     setBatchItemStates({});
@@ -110,6 +111,9 @@ export const QuestionRubricGeneratePage: React.FC = () => {
   useEffect(() => {
     if (selectedSetId > 0) {
       fetchQuestions(selectedSetId);
+    } else {
+      setQuestions([]);
+      setLoading(false);
     }
   }, [selectedSetId]);
 
@@ -354,7 +358,7 @@ export const QuestionRubricGeneratePage: React.FC = () => {
               to="/question-bank/narrative"
               className="text-slate-400 hover:text-slate-700 transition-colors inline-flex items-center text-xs mb-1"
             >
-              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to Narrative Questions Master
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to Narrative Questions
             </Link>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
@@ -386,7 +390,6 @@ export const QuestionRubricGeneratePage: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center space-x-2 text-sm font-semibold text-slate-700 whitespace-nowrap">
-                <Filter className="h-4 w-4 text-emerald-600" />
                 <span>Select Question Set:</span>
               </div>
               <select
@@ -395,6 +398,7 @@ export const QuestionRubricGeneratePage: React.FC = () => {
                 disabled={isBatchRunning || loadingSets}
                 className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium min-w-[280px]"
               >
+                <option value="0">-- Select Set --</option>
                 {sets.map((s) => (
                   <option key={s.setId} value={s.setId}>
                     {s.setName} {s.departmentName ? `(${s.departmentName})` : ''}
@@ -431,8 +435,22 @@ export const QuestionRubricGeneratePage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* KPI Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {selectedSetId === 0 ? (
+        <Card className="border-slate-200 shadow-sm p-12 text-center bg-white">
+          <div className="max-w-md mx-auto space-y-3">
+            <div className="h-12 w-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <Filter className="h-6 w-6" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-900">Please Select a Question Set</h3>
+            <p className="text-sm text-slate-500">
+              Select a question set from the dropdown above to view its narrative questions and generate AI scoring rubrics.
+            </p>
+          </div>
+        </Card>
+      ) : (
+        <>
+          {/* KPI Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Total Narrative */}
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-4 flex items-center justify-between">
@@ -502,7 +520,7 @@ export const QuestionRubricGeneratePage: React.FC = () => {
               The AI Rubric generator requires a reference model answer to extract evaluation criteria and marking points. 
               Questions without model answers will be skipped during rubric generation. You can add model answers in the{' '}
               <Link to="/question-bank/narrative" className="font-semibold underline hover:text-amber-950">
-                Narrative Questions Master
+                Narrative Questions
               </Link>.
             </p>
           </div>
@@ -848,7 +866,7 @@ export const QuestionRubricGeneratePage: React.FC = () => {
                       <div className="mt-1 rounded-md bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800 flex items-center justify-between">
                         <span>No model answer recorded for this question.</span>
                         <Link to="/question-bank/narrative" className="font-semibold underline hover:text-rose-950">
-                          Edit in Narrative Questions Master
+                          Edit in Narrative Questions
                         </Link>
                       </div>
                     )}
@@ -872,6 +890,8 @@ export const QuestionRubricGeneratePage: React.FC = () => {
           })
         )}
       </div>
+      </>
+      )}
 
       {/* View Rubric Details Dialog */}
       <Dialog open={viewRubricModalOpen} onOpenChange={setViewRubricModalOpen} className="max-w-3xl">

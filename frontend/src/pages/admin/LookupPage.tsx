@@ -113,7 +113,7 @@ export const LookupPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Lookup Items Master</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Lookup Items</h2>
           <p className="text-sm text-slate-500">Configure dropdown values for Companies, Departments, Locations, Grades, and Years.</p>
         </div>
         <Button onClick={handleOpenAdd} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1">

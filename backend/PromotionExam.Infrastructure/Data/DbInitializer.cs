@@ -152,8 +152,7 @@ namespace PromotionExam.Infrastructure.Data
                 // Children - Viewer
                 context.SysMenus.AddRange(
                     new SysMenu { parent_id = mViewer.id, menu_name = "Search Examinee", target_url = "/viewer/search-examinee", serial_no = 1, IS_ACTIVE = true, IS_PUBLIC = true },
-                    new SysMenu { parent_id = mViewer.id, menu_name = "Question Viewer", target_url = "/question-bank/viewer", serial_no = 2, IS_ACTIVE = true, IS_PUBLIC = true },
-                    new SysMenu { parent_id = mViewer.id, menu_name = "Result Viewer", target_url = "/viewer/results", serial_no = 3, IS_ACTIVE = true, IS_PUBLIC = true }
+                    new SysMenu { parent_id = mViewer.id, menu_name = "Question Viewer", target_url = "/question-bank/viewer", serial_no = 2, IS_ACTIVE = true, IS_PUBLIC = true }
                 );
 
                 // Children - Question Bank

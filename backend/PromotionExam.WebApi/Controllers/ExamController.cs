@@ -1,15 +1,16 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using PromotionExam.Application.DTOs.CandidateAttempt;
+using PromotionExam.Domain.Entities;
+using PromotionExam.Infrastructure.Data;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
-using PromotionExam.Domain.Entities;
-using PromotionExam.Infrastructure.Data;
 
 namespace PromotionExam.WebApi.Controllers
 {
@@ -161,7 +162,7 @@ namespace PromotionExam.WebApi.Controllers
             if (reg == null)
                 return NotFound(new { message = "Exam registration not found." });
 
-            // Load questions assigned in Exam_Question_Sheet if present, otherwise fall back to full set
+            // Load questions assigned in Examination Question Sheet if present, otherwise fall back to full set
             var assignedQuestionIds = await _context.ExamQuestionSheets
                 .Where(s => s.ExamineeId == examineeId && s.IsActive == true)
                 .OrderBy(s => s.QuestionSeq)
@@ -350,7 +351,8 @@ namespace PromotionExam.WebApi.Controllers
         [HttpGet("examStart")]
         public async Task<PromotionExam.Application.DTOs.CandidateAttempt.ResponseDTO> examStart([FromQuery] int examineeId)
         {
-            return await _candidateExamService.ExamStart(examineeId);
+            //return Type will be ExamSheet in ResponseDTO
+            //return await _candidateExamService.ExamStart(examineeId);
         }
 
         [AllowAnonymous]

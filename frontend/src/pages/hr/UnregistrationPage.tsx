@@ -4,30 +4,32 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Filter, UserX, Trash2, CheckCircle2 } from 'lucide-react';
-import { ExamRegistration, ExamBatch, QuestionSet } from '@/types';
+import { AlertCircle, CheckCircle, Filter, UserX, Users } from 'lucide-react';
+import { ExamRegistration, ExamBatch } from '@/types';
+
+interface SetOption {
+  setId: number;
+  setName: string;
+  count: number;
+}
 
 export const UnregistrationPage: React.FC = () => {
-  const [registrations, setRegistrations] = useState<ExamRegistration[]>([]);
   const [batches, setBatches] = useState<ExamBatch[]>([]);
-  const [sets, setSets] = useState<QuestionSet[]>([]);
+  const [batchRegistrations, setBatchRegistrations] = useState<ExamRegistration[]>([]);
+  const [setOptions, setSetOptions] = useState<SetOption[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<number>(0);
   const [selectedSetId, setSelectedSetId] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // On mount: load only batches — no auto-select (default "-- Select Batch --" = 0)
   useEffect(() => {
     const initData = async () => {
       try {
-        const [resBatches, resSets] = await Promise.all([
-          api.get('/batches'),
-          api.get('/questions/sets'),
-        ]);
+        const resBatches = await api.get('/batches');
         const activeBatches = (resBatches.data || []).filter((b: ExamBatch) => b.isActive !== false);
         setBatches(activeBatches);
-        if (activeBatches.length > 0) setSelectedBatchId(activeBatches[0].batchId);
-
-        const activeSets = (resSets.data || []).filter((s: QuestionSet) => s.isActive !== false);
-        setSets(activeSets);
       } catch (err) {
         console.error(err);
       }
@@ -35,35 +37,78 @@ export const UnregistrationPage: React.FC = () => {
     initData();
   }, []);
 
-  const fetchRegistrations = async () => {
+  // Load ACTIVE registrations (IsActive = 1 only) for the selected batch and derive the Set dropdown
+  const loadBatchRegistrations = async (batchId: number) => {
+    if (batchId <= 0) {
+      setBatchRegistrations([]);
+      setSetOptions([]);
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await api.get('/registrations', {
-        params: {
-          batchId: selectedBatchId > 0 ? selectedBatchId : undefined,
-          questionSetId: selectedSetId > 0 ? selectedSetId : undefined,
-        },
-      });
-      setRegistrations(res.data);
+      // Backend returns only IsActive = 1 records from Exam_Registration
+      const res = await api.get('/registrations', { params: { batchId } });
+      const regs: ExamRegistration[] = res.data || [];
+      setBatchRegistrations(regs);
+
+      // Set dropdown is built from the active registrations of the selected batch
+      const distinctSets = Array.from(
+        new Map(regs.map((r) => [r.questionSetId, r.setName || 'Default Set'])).entries()
+      ).map(([setId, setName]) => ({
+        setId,
+        setName,
+        count: regs.filter((r) => r.questionSetId === setId).length
+      }));
+      setSetOptions(distinctSets);
     } catch (err) {
       console.error(err);
+      setBatchRegistrations([]);
+      setSetOptions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchRegistrations();
-  }, [selectedBatchId, selectedSetId]);
+  // When batch changes: reset Set selection + registrations, then load batch data
+  const handleBatchChange = (batchId: number) => {
+    setSelectedBatchId(batchId);
+    setSelectedSetId(0);
+    setBatchRegistrations([]);
+    setSetOptions([]);
+    setSuccessMessage(null);
+    setErrorMessage(null);
 
+    if (batchId > 0) loadBatchRegistrations(batchId);
+  };
+
+  // When set changes: no examinees are shown until a Set is selected
+  const handleSetChange = (setId: number) => {
+    setSelectedSetId(setId);
+    setSuccessMessage(null);
+    setErrorMessage(null);
+  };
+
+  // Examinees are ONLY listed when both Batch and Set are selected
+  const visibleRegistrations =
+    selectedBatchId > 0 && selectedSetId > 0
+      ? batchRegistrations.filter((r) => r.questionSetId === selectedSetId)
+      : [];
+
+  // Soft delete: PATCH /registrations/{id}/deactivate sets IsActive = 0 only.
+  // No registration-related data (answers, scores, question sheets) is deleted.
   const handleUnregister = async (examineeId: number, name: string) => {
     if (!confirm(`Are you sure you want to unregister ${name} from this exam batch?`)) return;
 
+    setSuccessMessage(null);
+    setErrorMessage(null);
+
     try {
-      await api.delete(`/registrations/${examineeId}`);
-      fetchRegistrations();
+      await api.patch(`/registrations/${examineeId}/deactivate`);
+      setSuccessMessage(`${name} has been unregistered successfully (soft deleted — IsActive set to 0).`);
+      await loadBatchRegistrations(selectedBatchId);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to unregister examinee.');
+      setErrorMessage(err.response?.data?.message || 'Failed to unregister examinee.');
     }
   };
 
@@ -72,21 +117,37 @@ export const UnregistrationPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Examinee Unregistration & Roster</h2>
-          <p className="text-sm text-slate-500">View candidates registered for exams and remove eligible candidates if needed.</p>
+          <p className="text-sm text-slate-500">
+            View active candidates (IsActive = 1) registered for exams and remove eligible candidates if needed. Unregistration is a soft delete — no registration data is removed.
+          </p>
         </div>
       </div>
+
+      {successMessage && (
+        <div className="flex items-center space-x-2 rounded-md bg-emerald-50 p-4 text-sm text-emerald-800 border border-emerald-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0 text-emerald-600" />
+          <span className="font-semibold">{successMessage}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="flex items-center space-x-2 rounded-md bg-red-50 p-4 text-sm text-red-700 border border-red-200">
+          <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600" />
+          <span className="font-semibold">{errorMessage}</span>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <Card className="p-4 border-slate-200 shadow-sm bg-slate-50/50">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center space-x-2">
-            <span className="text-sm font-semibold text-slate-700">Exam Batch:</span>
+            <span className="text-sm font-semibold text-slate-700">Examination Batch:</span>
             <select
               value={selectedBatchId}
-              onChange={(e) => setSelectedBatchId(Number(e.target.value))}
+              onChange={(e) => handleBatchChange(Number(e.target.value))}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm"
             >
-              <option value="0">-- All Batches --</option>
+              <option value={0}>-- Select Batch --</option>
               {batches.map((b) => (
                 <option key={b.batchId} value={b.batchId}>
                   {b.examName}
@@ -99,21 +160,24 @@ export const UnregistrationPage: React.FC = () => {
             <span className="text-sm font-semibold text-slate-700">Question Set:</span>
             <select
               value={selectedSetId}
-              onChange={(e) => setSelectedSetId(Number(e.target.value))}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm"
+              onChange={(e) => handleSetChange(Number(e.target.value))}
+              disabled={selectedBatchId <= 0}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="0">-- All Sets --</option>
-              {sets.map((s) => (
+              <option value={0}>-- Select Set --</option>
+              {setOptions.map((s) => (
                 <option key={s.setId} value={s.setId}>
-                  {s.setName}
+                  {s.setName} ({s.count})
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="ml-auto text-xs font-semibold text-slate-500">
-            Total Registered: {registrations.length}
-          </div>
+          {selectedSetId > 0 && (
+            <div className="ml-auto text-xs font-semibold text-slate-500">
+              Active Registered: {visibleRegistrations.length}
+            </div>
+          )}
         </div>
       </Card>
 
@@ -121,7 +185,7 @@ export const UnregistrationPage: React.FC = () => {
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle>Registered Examinees</CardTitle>
-          <CardDescription>Candidates assigned to take the selected exam batch.</CardDescription>
+          <CardDescription>Active candidates assigned to take the selected exam batch and set.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -137,20 +201,40 @@ export const UnregistrationPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {selectedBatchId <= 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <Users className="h-8 w-8 text-slate-300" />
+                      <p className="text-sm font-semibold text-slate-600">Select an Exam Batch to continue</p>
+                      <p className="text-xs text-slate-400">Choose a batch from the filter above, then select a question set.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : selectedSetId <= 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <Filter className="h-8 w-8 text-slate-300" />
+                      <p className="text-sm font-semibold text-slate-600">Select a Question Set to view examinees</p>
+                      <p className="text-xs text-slate-400">No examinees are shown until a question set is selected.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : loading ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-slate-500">
                     Loading registrations...
                   </TableCell>
                 </TableRow>
-              ) : registrations.length === 0 ? (
+              ) : visibleRegistrations.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-slate-500">
-                    No examinees found for the selected criteria.
+                    No active examinees found for the selected criteria.
                   </TableCell>
                 </TableRow>
               ) : (
-                registrations.map((r) => (
+                visibleRegistrations.map((r) => (
                   <TableRow key={r.examineeId}>
                     <TableCell className="font-mono text-xs text-slate-500">#{r.examineeId}</TableCell>
                     <TableCell>

@@ -126,7 +126,7 @@ export const QuestionSetsPage: React.FC = () => {
                 <TableHead>Concentration</TableHead>
                 <TableHead className="text-center">Questions</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -167,17 +167,19 @@ export const QuestionSetsPage: React.FC = () => {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button size="sm" variant="outline" onClick={() => handleOpenEdit(s)}>
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={s.isActive ? 'destructive' : 'success'}
-                        onClick={() => handleToggle(s.setId)}
-                      >
-                        {s.isActive ? 'Deactivate' : 'Activate'}
-                      </Button>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleOpenEdit(s)}>
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={s.isActive ? 'destructive' : 'success'}
+                          onClick={() => handleToggle(s.setId)}
+                        >
+                          {s.isActive ? 'Deactivate' : 'Activate'}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

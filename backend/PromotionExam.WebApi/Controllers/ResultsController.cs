@@ -29,6 +29,7 @@ namespace PromotionExam.WebApi.Controllers
                 .Include(r => r.User)
                 .Include(r => r.Batch)
                 .Include(r => r.QuestionSet)
+                .Where(r => r.IsActive == true)   // Item 13: never show inactive registrations
                 .AsQueryable();
 
             if (batchId.HasValue && batchId.Value > 0)
@@ -127,12 +128,59 @@ namespace PromotionExam.WebApi.Controllers
             if (reg == null)
                 return NotFound(new { message = "Examinee registration not found." });
 
-            var questions = await _context.QuestionBanks
-                .Where(q => q.SetId == reg.QuestionSetId && q.IsActive == true)
-                .Include(q => q.Answers)
-                .OrderBy(q => q.TypeId)
-                .ThenBy(q => q.QuestionId)
+            var assignedQuestionIds = await _context.ExamQuestionSheets
+                .Where(s => s.ExamineeId == examineeId)
+                .OrderBy(s => s.QuestionSeq)
+                .ThenBy(s => s.QuestionId)
+                .Select(s => s.QuestionId)
                 .ToListAsync();
+
+            List<QuestionBank> questions;
+            if (assignedQuestionIds.Any())
+            {
+                var qList = await _context.QuestionBanks
+                    .Where(q => assignedQuestionIds.Contains(q.QuestionId))
+                    .Include(q => q.Answers)
+                    .ToListAsync();
+
+                questions = assignedQuestionIds
+                    .Select(id => qList.FirstOrDefault(q => q.QuestionId == id))
+                    .Where(q => q != null)
+                    .Cast<QuestionBank>()
+                    .ToList();
+            }
+            else
+            {
+                var answeredQuestionIds = await _context.ExamAnswerSheets
+                    .Where(a => a.ExamineeId == examineeId)
+                    .OrderBy(a => a.EAS_Id)
+                    .Select(a => a.QuestionId)
+                    .Distinct()
+                    .ToListAsync();
+
+                if (answeredQuestionIds.Any())
+                {
+                    var qList = await _context.QuestionBanks
+                        .Where(q => answeredQuestionIds.Contains(q.QuestionId))
+                        .Include(q => q.Answers)
+                        .ToListAsync();
+
+                    questions = answeredQuestionIds
+                        .Select(id => qList.FirstOrDefault(q => q.QuestionId == id))
+                        .Where(q => q != null)
+                        .Cast<QuestionBank>()
+                        .ToList();
+                }
+                else
+                {
+                    questions = await _context.QuestionBanks
+                        .Where(q => q.SetId == reg.QuestionSetId && q.IsActive == true)
+                        .Include(q => q.Answers)
+                        .OrderBy(q => q.TypeId)
+                        .ThenBy(q => q.QuestionId)
+                        .ToListAsync();
+                }
+            }
 
             var answerSheets = (await _context.ExamAnswerSheets
                 .Where(a => a.ExamineeId == examineeId)
