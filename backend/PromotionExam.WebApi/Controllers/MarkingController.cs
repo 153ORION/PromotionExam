@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,14 @@ namespace PromotionExam.WebApi.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IUserActivityService _activityService;
         private readonly IAiMarkingService _aiMarkingService;
+
+        // Stored AI JSON (Strengths/Missing/Incorrect/CriterionBreakdown) is persisted with camelCase
+        // naming by AiMarkingService; parsing must be case-insensitive to bind property names correctly.
+        private static readonly JsonSerializerOptions AiJsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
+        };
 
         public MarkingController(
             ApplicationDbContext context,
@@ -357,18 +366,26 @@ namespace PromotionExam.WebApi.Controllers
             var (isFinalized, approverFlow, approverUser, _) = await CheckIsMarkingFinalizedAsync(reg);
             bool autoApply = dto?.AutoApplyScores ?? true;
 
-            // If finalized and current examiner is not the Final Approver, do not allow applying scores
-            if (isFinalized && examinerId != approverFlow?.ExaminerId && autoApply)
+            // Resolve the AI Examiner identity: scores applied by auto-marking are recorded
+            // under the dedicated AI Examiner account (employee 0000000) so that marks are
+            // attributed to the AI Examiner rather than the human examiner who triggered it.
+            var aiExaminer = await _context.SysUserRegistrations
+                .FirstOrDefaultAsync(u => u.LoginId == "0000000" && u.IsActive == true);
+            var scoringExaminerId = aiExaminer != null ? aiExaminer.HRRecordId : examinerId;
+            var scoringExaminerName = aiExaminer?.Name ?? "AI Examiner";
+
+            // If finalized and the scoring examiner (AI Examiner) is not the Final Approver, do not allow applying scores
+            if (isFinalized && scoringExaminerId != (approverFlow?.ExaminerId ?? 0) && autoApply)
             {
-                return BadRequest(new { 
-                    message = $"Marking for this candidate has been finalized by the Final Approver ({approverUser?.Name ?? "Final Approver"}). Scores cannot be overwritten." 
+                return BadRequest(new {
+                    message = $"Marking for this candidate has been finalized by the Final Approver ({approverUser?.Name ?? "Final Approver"}). Scores cannot be overwritten."
                 });
             }
 
             try
             {
                 var forceReevaluate = dto?.ForceReevaluate ?? false;
-                var result = await _aiMarkingService.AutoMarkExamineeAsync(examineeId, forceReevaluate, autoApply, examinerId);
+                var result = await _aiMarkingService.AutoMarkExamineeAsync(examineeId, forceReevaluate, autoApply, scoringExaminerId);
 
                 var examiner = await _context.SysUserRegistrations.FindAsync(examinerId);
                 var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
@@ -379,7 +396,7 @@ namespace PromotionExam.WebApi.Controllers
                     "Admin",
                     "AI_MARKING",
                     "AI_AUTO_MARK_EXAMINEE",
-                    $"AI auto-marked Examinee #{examineeId} ({reg.User?.Name ?? "Candidate"}): {result.EvaluatedCount}/{result.TotalQuestions} questions evaluated, awarded {result.TotalAwardedMarks:F2}/{result.TotalMaxMarks:F2} marks (Scores Applied: {result.ScoresApplied}).",
+                    $"AI auto-marked Examinee #{examineeId} ({reg.User?.Name ?? "Candidate"}) via AI Examiner '{scoringExaminerName}': {result.EvaluatedCount}/{result.TotalQuestions} questions evaluated, awarded {result.TotalAwardedMarks:F2}/{result.TotalMaxMarks:F2} marks (Scores Applied: {result.ScoresApplied}).",
                     ip);
 
                 return Ok(result);
@@ -695,7 +712,7 @@ namespace PromotionExam.WebApi.Controllers
 
             try
             {
-                return System.Text.Json.JsonSerializer.Deserialize<List<AiEvaluationCriterionDto>>(json) ?? new List<AiEvaluationCriterionDto>();
+                return JsonSerializer.Deserialize<List<AiEvaluationCriterionDto>>(json, AiJsonOptions) ?? new List<AiEvaluationCriterionDto>();
             }
             catch
             {

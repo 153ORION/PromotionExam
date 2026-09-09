@@ -73,6 +73,26 @@ namespace PromotionExam.Infrastructure.Data
                 context.SaveChanges();
             }
 
+            // 1b. Ensure AI Examiner system account exists (identity used to attribute AI auto-marking scores)
+            const string aiExaminerLoginId = "0000000";
+            if (!context.SysUserRegistrations.Any(u => u.LoginId == aiExaminerLoginId))
+            {
+                context.SysUserRegistrations.Add(new SysUserRegistration
+                {
+                    LoginId = aiExaminerLoginId,
+                    Password = null, // System service account — interactive login is not allowed
+                    Name = "AI Examiner (Google Gemini)",
+                    Designation = "AI Examiner — Automated Evaluation",
+                    CompanyName = "Orion Group",
+                    DepartmentName = "Information Technology",
+                    IsAdmin = false,
+                    IsSuperAdmin = false,
+                    IsActive = true,
+                    EntryDate = DateTime.Now
+                });
+                context.SaveChanges();
+            }
+
             // 2. Seed Lookup Types
             if (!context.SysLookupTypes.Any())
             {

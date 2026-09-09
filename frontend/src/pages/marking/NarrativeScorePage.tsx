@@ -191,10 +191,9 @@ export const NarrativeScorePage: React.FC = () => {
     }));
   };
 
-  // Adopt / Copy marks & remarks from previous examiner AND IMMEDIATELY SAVE
-  const handleAdoptScore = async (questionId: number, preview: ExaminerScorePreview) => {
-    if (!selectedCandidate) return;
-
+  // Adopt / Copy marks & remarks from previous examiner into the form ONLY.
+  // Nothing is posted here — the examiner records it via the "Save Score" button.
+  const handleAdoptScore = (questionId: number, preview: ExaminerScorePreview) => {
     setScores(prev => ({
       ...prev,
       [questionId]: {
@@ -203,25 +202,8 @@ export const NarrativeScorePage: React.FC = () => {
       }
     }));
 
-    setSavingQuestionId(questionId);
-    setSaveSuccess(null);
-    try {
-      const res = await api.post('/marking/score', {
-        examineeId: selectedCandidate.examineeId,
-        questionId: questionId,
-        marks: Number(preview.marks),
-        remarks: preview.remarks || ''
-      });
-      setSaveSuccess(`Adopted ${preview.examinerName}'s score (${preview.marks} marks) for Question #${questionId} and saved successfully!`);
-      setTimeout(() => setSaveSuccess(null), 3500);
-      await fetchCandidates();
-      const refreshed = await api.get(`/marking/examinee/${selectedCandidate.examineeId}/narratives`);
-      setQuestions(refreshed.data);
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to adopt score.');
-    } finally {
-      setSavingQuestionId(null);
-    }
+    setSaveSuccess(`Adopted ${preview.examinerName}'s score (${preview.marks} marks) for Question #${questionId} into the form. Click "Save Score" to record it.`);
+    setTimeout(() => setSaveSuccess(null), 4500);
   };
 
   // Adopt all scores from a specific examiner for the candidate in one click
@@ -451,6 +433,9 @@ export const NarrativeScorePage: React.FC = () => {
   const myTotalScore = questions.reduce((sum, q) => sum + Number(scores[q.questionId]?.marks ?? 0), 0);
   const maxTotalScore = questions.reduce((sum, q) => sum + Number(q.maxMarks ?? 0), 0);
 
+  // AI Examiner identity (employee 0000000): AI automation buttons are exclusive to this account
+  const isAiExaminer = user?.loginId === '0000000';
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -529,28 +514,38 @@ export const NarrativeScorePage: React.FC = () => {
               <span>{previewExaminersMode ? 'Preview Examiner Marking: ON' : 'Preview Examiner Marking: OFF'}</span>
             </Button>
 
-            {selectedCandidate && questions.length > 0 && (
-              <>
-                <Button
-                  type="button"
-                  onClick={() => setAutoMarkDialogOpen(true)}
-                  disabled={autoMarkingCandidate || (questions[0]?.isFinalized && !questions[0]?.canEdit)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-1.5 text-xs h-9 font-semibold shadow-sm"
-                  title="Run Google Gemini AI auto-marking for all questions of this examinee"
-                >
-                  <Sparkles className={`h-4 w-4 ${autoMarkingCandidate ? 'animate-spin' : 'text-indigo-200'}`} />
-                  <span>{autoMarkingCandidate ? 'Auto-Marking...' : 'AI Auto-Mark All'}</span>
-                </Button>
+            {/* AI Auto-Mark via AI Examiner — visible only when the current examiner is the AI Examiner (0000000) */}
+            {isAiExaminer && (
+              <Button
+                type="button"
+                onClick={() => setAutoMarkDialogOpen(true)}
+                disabled={
+                  autoMarkingCandidate ||
+                  !selectedCandidate ||
+                  questions.length === 0 ||
+                  (questions[0]?.isFinalized && !questions[0]?.canEdit)
+                }
+                className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center space-x-1.5 text-xs h-9 font-semibold shadow-sm"
+                title={
+                  !selectedCandidate || questions.length === 0
+                    ? 'Select a batch, question set, and candidate first to enable AI auto-marking via the AI Examiner'
+                    : 'Run Google Gemini AI auto-marking for all questions of this examinee. Applied scores are recorded under the AI Examiner (employee 0000000) account.'
+                }
+              >
+                <Sparkles className={`h-4 w-4 ${autoMarkingCandidate ? 'animate-spin' : 'text-indigo-200'}`} />
+                <span>{autoMarkingCandidate ? 'Auto-Marking...' : 'AI Auto-Mark All'}</span>
+              </Button>
+            )}
 
-                <Button
-                  onClick={handleSaveAllScores}
-                  disabled={savingAll}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center space-x-1.5 text-xs h-9"
-                >
-                  <Save className="h-4 w-4" />
-                  <span>{savingAll ? 'Saving All...' : 'Save All Scores'}</span>
-                </Button>
-              </>
+            {selectedCandidate && questions.length > 0 && (
+              <Button
+                onClick={handleSaveAllScores}
+                disabled={savingAll}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center space-x-1.5 text-xs h-9"
+              >
+                <Save className="h-4 w-4" />
+                <span>{savingAll ? 'Saving All...' : 'Save All Scores'}</span>
+              </Button>
             )}
           </div>
         </div>
@@ -731,14 +726,8 @@ export const NarrativeScorePage: React.FC = () => {
                 </Card>
               ) : (
                 questions.map((q, qIdx) => {
-                  const otherScores = (q.examinerScores || []).filter(s => !s.isCurrentExaminer);
                   const isPreviewOpen = previewExaminersMode && (expandedPreviews[q.questionId] ?? true);
                   const canEditThisQuestion = q.canEdit ?? true;
-
-                  // Distinct previous examiners for quick adopt
-                  const distinctOtherExaminers = Array.from(
-                    new Map(otherScores.map(s => [s.examinerId, { id: s.examinerId, name: s.examinerName, role: s.role }])).values()
-                  );
 
                   return (
                     <Card key={q.questionId} className="border-slate-200 shadow-sm mb-6 overflow-hidden">
@@ -819,7 +808,7 @@ export const NarrativeScorePage: React.FC = () => {
                                 AI Marking Assistant
                               </span>
                             </div>
-                            {q.aiRubricStatus === 'Ready' && (
+                            {q.aiRubricStatus === 'Ready' && isAiExaminer && (
                               <div className="flex gap-2">
                                 <Button
                                   type="button"
@@ -873,7 +862,7 @@ export const NarrativeScorePage: React.FC = () => {
                                     Confidence: {Math.round((aiEvaluations[q.questionId]?.confidence ?? 0) * 100)}% | Status: {aiEvaluations[q.questionId]?.validationStatus}
                                   </div>
                                 </div>
-                                {canEditThisQuestion && aiEvaluations[q.questionId]?.isValidSuggestion && (
+                                {isAiExaminer && canEditThisQuestion && aiEvaluations[q.questionId]?.isValidSuggestion && (
                                   <Button
                                     type="button"
                                     size="sm"
@@ -966,26 +955,6 @@ export const NarrativeScorePage: React.FC = () => {
 
                             {isPreviewOpen && (
                               <div className="space-y-3 pt-1">
-                                {distinctOtherExaminers.length > 0 && canEditThisQuestion && (
-                                  <div className="flex flex-wrap gap-2 pb-1 border-b border-purple-200/80">
-                                    {distinctOtherExaminers.map(ex => (
-                                      <Button
-                                        key={ex.id}
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleAdoptAllFromExaminer(ex.id, ex.name)}
-                                        disabled={savingAll}
-                                        className="text-[11px] h-7 px-2.5 bg-white border-purple-300 text-purple-900 hover:bg-purple-100 flex items-center space-x-1 font-medium"
-                                        title={`Adopt all narrative scores from ${ex.name} across this candidate's paper`}
-                                      >
-                                        <Copy className="h-3 w-3 text-purple-700" />
-                                        <span>Adopt All from {ex.name} ({ex.role})</span>
-                                      </Button>
-                                    ))}
-                                  </div>
-                                )}
-
                                 {(!q.examinerScores || q.examinerScores.length === 0) ? (
                                   <div className="text-xs text-purple-600 italic py-2">
                                     No other examiner has graded this question yet. You are the first evaluator.
@@ -1042,12 +1011,11 @@ export const NarrativeScorePage: React.FC = () => {
                                               size="sm"
                                               variant="outline"
                                               onClick={() => handleAdoptScore(q.questionId, score)}
-                                              disabled={savingQuestionId === q.questionId}
                                               className="text-[11px] h-7 px-2 border-purple-300 text-purple-800 hover:bg-purple-100 flex items-center space-x-1"
-                                              title="Adopt and instantly record this examiner's marks & remarks"
+                                              title="Adopt this examiner's marks & remarks into the form — recorded when you click Save Score"
                                             >
                                               <Copy className="h-3 w-3" />
-                                              <span>{savingQuestionId === q.questionId ? 'Adopting...' : 'Adopt Score'}</span>
+                                              <span>Adopt Score</span>
                                             </Button>
                                           )}
                                         </div>
@@ -1145,6 +1113,8 @@ export const NarrativeScorePage: React.FC = () => {
           </div>
           <DialogDescription>
             Automatically evaluate all narrative questions for <strong>{selectedCandidate?.name}</strong> using Google Gemini.
+            Applied scores are recorded under the <strong>AI Examiner</strong> account (employee <strong>0000000</strong>),
+            so the marks are attributed to the AI Examiner — not to your own examiner account.
           </DialogDescription>
         </DialogHeader>
 
@@ -1175,7 +1145,8 @@ export const NarrativeScorePage: React.FC = () => {
               <div>
                 <span className="font-medium text-slate-800 text-xs block">Automatically save scores & remarks to scorecard</span>
                 <span className="text-[11px] text-slate-500 block">
-                  Applies awarded marks and detailed feedback into the database and updates candidate totals immediately.
+                  Saves awarded marks and detailed feedback to the scorecard under the AI Examiner (0000000) account
+                  and updates candidate totals immediately.
                 </span>
               </div>
             </label>

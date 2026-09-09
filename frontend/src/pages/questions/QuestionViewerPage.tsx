@@ -178,7 +178,7 @@ export const QuestionViewerPage: React.FC = () => {
 
                 {q.typeId === 2 && q.narrativeAnswer && (
                   <div className="pl-6 text-xs text-slate-500 italic print:hidden">
-                    <span className="font-semibold text-amber-700">Model Key: </span>
+                    <span className="font-semibold text-amber-700">Reference Model Answer: </span>
                     {q.narrativeAnswer}
                   </div>
                 )}

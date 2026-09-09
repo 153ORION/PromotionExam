@@ -117,6 +117,40 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(new { message = "Examiner flow path assigned successfully." });
         }
 
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateFlowpath(int id, [FromBody] FlowpathUpdateDto dto)
+        {
+            if (dto.ExaminerId <= 0)
+                return BadRequest(new { message = "A valid examiner is required." });
+
+            if (dto.Rank < 1)
+                return BadRequest(new { message = "Rank must be 1 or higher." });
+
+            var flowpath = await _context.SysFlowpaths.FindAsync(id);
+            if (flowpath == null)
+                return NotFound(new { message = "Flow path not found." });
+
+            var examinerExists = await _context.SysUserRegistrations
+                .AnyAsync(u => u.IsActive == true && u.HRRecordId == dto.ExaminerId);
+            if (!examinerExists)
+                return BadRequest(new { message = "Selected examiner is not an active employee." });
+
+            var duplicate = await _context.SysFlowpaths
+                .AnyAsync(f => f.Path_Id != id
+                    && f.BatchId == flowpath.BatchId
+                    && f.ExamSetId == flowpath.ExamSetId
+                    && f.ExaminerId == dto.ExaminerId);
+            if (duplicate)
+                return BadRequest(new { message = "This examiner is already assigned to this batch and set." });
+
+            flowpath.ExaminerId = dto.ExaminerId;
+            flowpath.Rank = dto.Rank;
+            flowpath.Approver = dto.Approver;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Flow path updated successfully." });
+        }
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteFlowpath(int id)
         {

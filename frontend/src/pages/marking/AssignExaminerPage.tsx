@@ -7,15 +7,17 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
-  ArrowLeft, 
-  UserCheck, 
-  GitBranch, 
-  ShieldCheck, 
-  CheckCircle2, 
-  AlertCircle, 
-  Trash2, 
+  ArrowLeft,
+  UserCheck,
+  GitBranch,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+  Trash2,
   RefreshCw,
-  Sparkles
+  Pencil,
+  Check,
+  X
 } from 'lucide-react';
 import { Flowpath, ExamBatch, QuestionSet, ActiveEmployee } from '@/types';
 import { SearchableSelect, SearchableSelectOption } from '@/components/ui/SearchableSelect';
@@ -34,7 +36,7 @@ export const AssignExaminerPage: React.FC = () => {
   const [selectedBatchId, setSelectedBatchId] = useState<number>(0);
   const [selectedSetId, setSelectedSetId] = useState<number>(0);
   const [selectedExaminerId, setSelectedExaminerId] = useState<number>(0);
-  const [rank, setRank] = useState<number>(2); // rank 1 is reserved for AI Examiner
+  const [rank, setRank] = useState<number>(1);
   const [isApprover, setIsApprover] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,6 +47,13 @@ export const AssignExaminerPage: React.FC = () => {
   // Context: existing examiners for selected Batch & Set
   const [existingFlowpaths, setExistingFlowpaths] = useState<Flowpath[]>([]);
   const [loadingExisting, setLoadingExisting] = useState(false);
+
+  // Inline edit state for existing flow path assignments
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editExaminerId, setEditExaminerId] = useState<number>(0);
+  const [editRank, setEditRank] = useState<number>(1);
+  const [editApprover, setEditApprover] = useState<boolean>(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const searchDebounceRef = useRef<any>(null);
 
@@ -74,6 +83,10 @@ export const AssignExaminerPage: React.FC = () => {
     setSelectedSetId(0);
     setSets([]);
     setExistingFlowpaths([]);
+    setEditingId(null);
+    setEditExaminerId(0);
+    setEditRank(1);
+    setEditApprover(false);
     setSuccessMsg(null);
     setErrorMsg(null);
 
@@ -92,6 +105,10 @@ export const AssignExaminerPage: React.FC = () => {
   const handleSetChange = (setId: number) => {
     setSelectedSetId(setId);
     setExistingFlowpaths([]);
+    setEditingId(null);
+    setEditExaminerId(0);
+    setEditRank(1);
+    setEditApprover(false);
     setSuccessMsg(null);
     setErrorMsg(null);
   };
@@ -110,8 +127,8 @@ export const AssignExaminerPage: React.FC = () => {
       });
       const paths: Flowpath[] = res.data || [];
       setExistingFlowpaths(paths);
-      // Auto-increment next rank (starting from 2 at minimum, since rank 1 is AI)
-      const nextRank = Math.max(2, paths.length + 1);
+      // Auto-increment next rank
+      const nextRank = Math.max(1, paths.length + 1);
       setRank(nextRank);
     } catch (err) {
       console.error('Failed to load existing flow paths:', err);
@@ -170,8 +187,8 @@ export const AssignExaminerPage: React.FC = () => {
       setErrorMsg('Please search and select an Examiner.');
       return;
     }
-    if (Number(rank) <= 1) {
-      setErrorMsg('Rank 1 is reserved for the AI Examiner (system). Please use Rank 2 or higher.');
+    if (Number(rank) < 1) {
+      setErrorMsg('Rank must be 1 or higher.');
       return;
     }
 
@@ -206,6 +223,71 @@ export const AssignExaminerPage: React.FC = () => {
       fetchExistingForSet(selectedBatchId, selectedSetId);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to remove assignment.');
+    }
+  };
+
+  // Start inline editing of an existing flow path assignment
+  const handleEditExisting = (f: Flowpath) => {
+    setEditingId(f.path_Id);
+    setEditExaminerId(f.examinerId);
+    setEditRank(f.rank);
+    setEditApprover(!!f.approver);
+    setSuccessMsg(null);
+    setErrorMsg(null);
+
+    // Ensure the currently assigned examiner appears in the searchable options
+    setExaminers((prev) => {
+      if (prev.some((e) => e.hrRecordId === f.examinerId)) return prev;
+      return [
+        {
+          hrRecordId: f.examinerId,
+          loginId: f.examinerCode || '',
+          name: f.examinerName || `ID: ${f.examinerId}`,
+          designation: f.examinerDesignation,
+          departmentName: f.examinerDepartment,
+          locationName: undefined
+        },
+        ...prev
+      ];
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditExaminerId(0);
+    setEditRank(1);
+    setEditApprover(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (editingId === null) return;
+    setSuccessMsg(null);
+    setErrorMsg(null);
+
+    if (editExaminerId <= 0) {
+      setErrorMsg('Please search and select a valid Examiner to update.');
+      return;
+    }
+    if (Number(editRank) < 1) {
+      setErrorMsg('Rank must be 1 or higher.');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      await api.put(`/flowpaths/${editingId}`, {
+        examinerId: editExaminerId,
+        rank: Number(editRank),
+        approver: editApprover
+      });
+
+      setSuccessMsg('Flow path assignment updated successfully.');
+      handleCancelEdit();
+      await fetchExistingForSet(selectedBatchId, selectedSetId);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Failed to update flow path assignment.');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -360,17 +442,6 @@ export const AssignExaminerPage: React.FC = () => {
                   </select>
                 </div>
 
-                {/* AI Examiner Rank 1 Notice */}
-                <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-3.5 text-sm flex items-start space-x-3">
-                  <Sparkles className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-indigo-900">Rank 1 — AI Examiner (System Reserved)</p>
-                    <p className="text-[11px] text-indigo-700 leading-relaxed">
-                      Rank 1 is automatically reserved for the AI Examiner on every flow path. You may only assign human examiners starting from Rank 2.
-                    </p>
-                  </div>
-                </div>
-
                 {/* Searchable Examiner Dropdown */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
@@ -425,14 +496,14 @@ export const AssignExaminerPage: React.FC = () => {
                     </label>
                     <Input
                       type="number"
-                      min="2"
+                      min="1"
                       value={rank}
                       onChange={(e) => setRank(Number(e.target.value))}
                       className="w-full"
                       required
                     />
                     <p className="text-[11px] text-slate-500">
-                      Rank 2 or higher (Rank 1 is reserved for AI Examiner).
+                      Rank 1 or higher (e.g. assign the AI Examiner employee at Rank 1).
                     </p>
                   </div>
 
@@ -502,7 +573,8 @@ export const AssignExaminerPage: React.FC = () => {
                 )}
               </div>
               <CardDescription className="text-xs">
-                Existing evaluators configured for {selectedSet?.setName || 'this paper set'}.
+                Existing evaluators configured for {selectedSet?.setName || 'this paper set'}. Use
+                the edit icon to update an assignment.
               </CardDescription>
             </CardHeader>
 
@@ -528,89 +600,134 @@ export const AssignExaminerPage: React.FC = () => {
                       <TableHead className="w-12 text-center text-xs">Rank</TableHead>
                       <TableHead className="text-xs">Examiner</TableHead>
                       <TableHead className="text-xs">Role</TableHead>
-                      <TableHead className="w-10"></TableHead>
+                      <TableHead className="w-20"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {/* AI Examiner placeholder at Rank 1 */}
-                    <TableRow className="bg-indigo-50/40">
-                      <TableCell className="text-center font-bold text-indigo-700 text-xs">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 mx-auto">
-                          1
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1.5">
-                          <Sparkles className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                          <div>
-                            <div className="text-xs font-semibold text-indigo-900">AI Examiner (System)</div>
-                            <div className="text-[11px] text-indigo-600">Auto-configured · Not removable</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className="bg-indigo-100 text-indigo-800 border-indigo-300 text-[10px] px-1.5 py-0">
-                          AI Evaluator
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {/* No delete button for AI Examiner */}
-                      </TableCell>
-                    </TableRow>
-
                     {existingFlowpaths.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center py-6 text-xs text-slate-500">
-                          <p className="font-semibold text-slate-700">No Human Evaluators Assigned Yet</p>
+                          <p className="font-semibold text-slate-700">No Evaluators Assigned Yet</p>
                           <p className="text-[11px] text-slate-500 mt-1">
-                            Use the form on the left to assign evaluators starting from Rank 2.
+                            Use the form on the left to assign evaluators (including the AI Examiner employee).
                           </p>
                         </TableCell>
                       </TableRow>
                     ) : (
-                      existingFlowpaths.map((f) => (
-                        <TableRow key={f.path_Id}>
-                          <TableCell className="text-center font-bold text-blue-700 text-xs">
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 mx-auto">
-                              {f.rank}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-xs font-semibold text-slate-900 truncate">
-                              {f.examinerName || `ID: ${f.examinerId}`}
-                            </div>
-                            <div className="text-[11px] text-slate-500 flex items-center space-x-1">
-                              {f.examinerCode && (
-                                <span className="font-mono bg-slate-100 px-1 rounded text-[10px]">
-                                  {f.examinerCode}
+                      existingFlowpaths.map((f) =>
+                        f.path_Id === editingId ? (
+                          <TableRow key={f.path_Id} className="bg-blue-50/60">
+                            <TableCell className="text-center align-top pt-3.5">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={editRank}
+                                onChange={(e) => setEditRank(Number(e.target.value))}
+                                className="h-8 w-14 text-center text-xs"
+                                autoFocus
+                              />
+                            </TableCell>
+                            <TableCell colSpan={2} className="py-2.5">
+                              <SearchableSelect
+                                options={examinerOptions}
+                                selectedId={editExaminerId || undefined}
+                                onSelect={(opt) => setEditExaminerId(opt ? Number(opt.id) : 0)}
+                                placeholder="Change examiner..."
+                                searchPlaceholder="Type employee code or name to search..."
+                                loading={searchingExaminers}
+                                onSearchChange={handleExaminerSearch}
+                              />
+                              <label className="mt-2 flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={editApprover}
+                                  onChange={(e) => setEditApprover(e.target.checked)}
+                                  className="h-3.5 w-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                />
+                                <span className="text-[11px] font-medium text-slate-700">
+                                  Authorized Final Approver
                                 </span>
+                              </label>
+                            </TableCell>
+                            <TableCell className="text-right align-top pt-3.5">
+                              <div className="flex items-center justify-end space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={handleSaveEdit}
+                                  disabled={savingEdit}
+                                  className="p-1 text-emerald-600 hover:text-emerald-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Save changes"
+                                >
+                                  <Check className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEdit}
+                                  disabled={savingEdit}
+                                  className="p-1 text-slate-400 hover:text-slate-600 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Cancel edit"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          <TableRow key={f.path_Id}>
+                            <TableCell className="text-center font-bold text-blue-700 text-xs">
+                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 mx-auto">
+                                {f.rank}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-xs font-semibold text-slate-900 truncate">
+                                {f.examinerName || `ID: ${f.examinerId}`}
+                              </div>
+                              <div className="text-[11px] text-slate-500 flex items-center space-x-1">
+                                {f.examinerCode && (
+                                  <span className="font-mono bg-slate-100 px-1 rounded text-[10px]">
+                                    {f.examinerCode}
+                                  </span>
+                                )}
+                                <span className="truncate">{f.examinerDesignation || 'Staff'}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {f.approver ? (
+                                <Badge className="bg-purple-100 text-purple-800 border-purple-300 text-[10px] px-1.5 py-0">
+                                  Approver
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                  Evaluator
+                                </Badge>
                               )}
-                              <span className="truncate">{f.examinerDesignation || 'Staff'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {f.approver ? (
-                              <Badge className="bg-purple-100 text-purple-800 border-purple-300 text-[10px] px-1.5 py-0">
-                                Approver
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                Evaluator
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteExisting(f.path_Id)}
-                              className="p-1 text-slate-400 hover:text-red-600 rounded"
-                              title="Remove examiner"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditExisting(f)}
+                                  disabled={editingId !== null}
+                                  className="p-1 text-slate-400 hover:text-blue-600 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                                  title="Edit assignment"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExisting(f.path_Id)}
+                                  disabled={editingId !== null}
+                                  className="p-1 text-slate-400 hover:text-red-600 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                                  title="Remove examiner"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      )
                     )}
                   </TableBody>
                 </Table>
@@ -625,8 +742,8 @@ export const AssignExaminerPage: React.FC = () => {
               <span>Flow Path Routing Rules</span>
             </h4>
             <ul className="space-y-1 list-disc pl-4 text-slate-600">
-              <li>Rank 1 is always the <strong>AI Examiner</strong> (automatically configured by the system).</li>
-              <li>Human evaluators start from Rank 2 upwards.</li>
+              <li>All examiners — including the AI Examiner (employee <strong>0000000</strong>) — are assigned manually.</li>
+              <li>Ranks start from 1 upwards; assign the AI Examiner to the rank you prefer.</li>
               <li>Multiple examiners can evaluate in tiers before final submission.</li>
               <li>At least one examiner should be designated as <strong>Authorized Final Approver</strong>.</li>
               <li>Examiners evaluate narrative answer papers mapped to this paper set.</li>

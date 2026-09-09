@@ -78,6 +78,13 @@ namespace PromotionExam.Application.DTOs.Exam
         public bool Approver { get; set; }
     }
 
+    public class FlowpathUpdateDto
+    {
+        public int ExaminerId { get; set; }
+        public int Rank { get; set; }
+        public bool Approver { get; set; }
+    }
+
     public class ExamRegistrationDto
     {
         public int ExamineeId { get; set; }

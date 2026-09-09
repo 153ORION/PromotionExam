@@ -21,15 +21,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    const clearSession = () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('menus');
+    };
+
+    const safeParse = <T,>(raw: string | null): T | null => {
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw) as T;
+      } catch {
+        return null;
+      }
+    };
+
     const initAuth = async () => {
       const savedToken = localStorage.getItem('token');
-      const savedUser = localStorage.getItem('user');
-      const savedMenus = localStorage.getItem('menus');
+      const savedUser = safeParse<User>(localStorage.getItem('user'));
+      const savedMenus = safeParse<MenuItem[]>(localStorage.getItem('menus'));
 
       if (savedToken && savedUser) {
-        setUser(JSON.parse(savedUser));
+        setUser(savedUser);
         if (savedMenus) {
-          setMenus(JSON.parse(savedMenus));
+          setMenus(savedMenus);
         }
         try {
           const res = await api.get('/auth/me');
@@ -38,14 +53,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem('user', JSON.stringify(res.data));
           localStorage.setItem('menus', JSON.stringify(res.data.menus || []));
         } catch {
-          // invalid token
-          logout();
+          // invalid or expired token — clear session so the login page shows
+          clearSession();
+          setToken(null);
+          setUser(null);
+          setMenus([]);
         }
+      } else if (savedToken || savedUser) {
+        // Corrupted/partial session data — clear it so the login page shows
+        clearSession();
+        setToken(null);
+        setUser(null);
+        setMenus([]);
       }
       setIsLoading(false);
     };
 
-    initAuth();
+    initAuth().catch(() => {
+      // Never leave the app stuck in the loading state
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('menus');
+      setToken(null);
+      setUser(null);
+      setMenus([]);
+      setIsLoading(false);
+    });
   }, []);
 
   const login = async (loginId: string, password: string) => {
