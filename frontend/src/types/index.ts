@@ -12,6 +12,7 @@ export interface User {
   profilePhoto?: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isExaminerOfActiveBatch?: boolean;
   isActive?: boolean;
 }
 
@@ -39,6 +40,7 @@ export interface LoginResponse {
   profilePhoto?: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isExaminerOfActiveBatch?: boolean;
   menus: MenuItem[];
 }
 
@@ -327,6 +329,7 @@ export interface ExamineeResultSummary {
 
 export interface DashboardStats {
   totalExaminees: number;
+  totalCurrentExaminees: number;
   totalExaminers: number;
   totalBatches: number;
   totalQuestionSets: number;
@@ -389,5 +392,25 @@ export interface GenerateStandardAnswerResponse {
   questionId: number;
   standardAnswer: string;
   message: string;
+}
+
+export interface RubricViewerQuestion {
+  questionId: number;
+  question: string;
+  marks: number;
+  narrativeAnswer?: string;
+  rubricStatus: string; // Ready | Outdated | NotGenerated
+  rubricVersionNo?: number;
+  rubricSummary?: string;
+  rubricSourceModel?: string;
+  rubricGeneratedAt?: string;
+  criteria: AiRubricCriterion[];
+}
+
+export interface RubricViewerResponse {
+  setId: number;
+  setName: string;
+  totalQuestions: number;
+  questions: RubricViewerQuestion[];
 }
 

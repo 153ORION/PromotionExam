@@ -23,6 +23,9 @@ namespace PromotionExam.WebApi.Controllers
         public async Task<IActionResult> GetStats()
         {
             var totalExaminees = await _context.ExamRegistrations.CountAsync(r => r.IsActive == true);   // Item 13: count only active registrations
+            // Examinees registered in currently ACTIVE exam batches only
+            var totalCurrentExaminees = await _context.ExamRegistrations
+                .CountAsync(r => r.IsActive == true && _context.ExamBatches.Any(b => b.BatchId == r.BatchId && b.IsActive == true));
             var totalExaminers = await _context.SysFlowpaths.Select(f => f.ExaminerId).Distinct().CountAsync();
             var totalBatches = await _context.ExamBatches.CountAsync(b => b.IsActive == true);
             var totalQuestionSets = await _context.QuestionSets.CountAsync(s => s.IsActive == true);
@@ -33,6 +36,7 @@ namespace PromotionExam.WebApi.Controllers
             var stats = new DashboardStatsDto
             {
                 TotalExaminees = totalExaminees,
+                TotalCurrentExaminees = totalCurrentExaminees,
                 TotalExaminers = totalExaminers,
                 TotalBatches = totalBatches,
                 TotalQuestionSets = totalQuestionSets,

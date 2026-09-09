@@ -99,7 +99,7 @@ export const LoginPage: React.FC = () => {
 
             <CardFooter className="flex flex-col space-y-3">
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
-                {isLoading ? 'Authenticating...' : 'Sign In to Portal'}
+                {isLoading ? 'Authenticating...' : 'Sign In'}
               </Button>
             </CardFooter>
           </form>

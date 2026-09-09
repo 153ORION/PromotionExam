@@ -20,6 +20,7 @@ namespace PromotionExam.Application.DTOs.Auth
         public string? ProfilePhoto { get; set; }
         public bool IsAdmin { get; set; }
         public bool IsSuperAdmin { get; set; }
+        public bool IsExaminerOfActiveBatch { get; set; }
         public List<MenuItemDto> Menus { get; set; } = new();
     }
 

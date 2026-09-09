@@ -122,12 +122,11 @@ export const RegistrationPage: React.FC = () => {
         const res = await api.get('/registrations/search-employee', { params: { query: term.trim() } });
         const emp = res.data;
         if (emp) {
-          // Build a single result option
+          // Build a single result option: employee ID + name only
           setEmployeeOptions([{
             id: emp.hrRecordId,
             code: emp.loginId,
-            title: emp.name,
-            subtitle: [emp.designation, emp.departmentName].filter(Boolean).join(' • ')
+            title: emp.name
           }]);
         }
       } catch (err: any) {
@@ -218,6 +217,17 @@ export const RegistrationPage: React.FC = () => {
 
   const currentRosterBatch = batches.find((b) => b.batchId === rosterBatchId);
 
+  // Question Set filter options for the roster are derived from the loaded
+  // registrations, so only sets actually used in the selected batch are listed.
+  const rosterSetOptions = Array.from(
+    registrations.reduce((map, r) => {
+      if (!map.has(r.questionSetId)) {
+        map.set(r.questionSetId, r.setName || `Set #${r.questionSetId}`);
+      }
+      return map;
+    }, new Map<number, string>())
+  ).map(([id, name]) => ({ id, name }));
+
   const filteredRegistrations = registrations.filter((r) => {
     if (rosterSetFilter > 0 && r.questionSetId !== rosterSetFilter) return false;
     if (!rosterSearch.trim()) return true;
@@ -233,17 +243,18 @@ export const RegistrationPage: React.FC = () => {
   });
 
   // Searchable options for batch / set / grade dropdowns
+  // Batch: year + batch name only (no status)
   const batchOptions: SearchableSelectOption[] = batches.map((b) => ({
     id: b.batchId,
     code: String(b.examYear),
-    title: b.examName,
-    subtitle: b.isActive !== false ? 'Active' : 'Inactive'
+    title: b.examName
   }));
 
+  // Question Set: set name + grade name only
   const setOptions: SearchableSelectOption[] = sets.map((s) => ({
     id: s.setId,
     title: s.setName,
-    subtitle: s.gradeName ? `Grade: ${s.gradeName}` : `${s.questionCount ?? 0} questions`
+    subtitle: s.gradeName || undefined
   }));
 
   const gradeOptions: SearchableSelectOption[] = (basicLookups['Grade'] || []).map((g) => ({
@@ -280,26 +291,25 @@ export const RegistrationPage: React.FC = () => {
         </CardHeader>
 
         <CardContent className="space-y-5">
-          {/* Row 1: Examinee searchable select */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-slate-700">
-              Examinee <span className="text-red-500">*</span>
-            </label>
-            <SearchableSelect
-              options={employeeOptions}
-              selectedId={selectedEmployeeId}
-              onSelect={handleEmployeeSelect}
-              placeholder="Search employee by ID or name..."
-              searchPlaceholder="Type employee ID (e.g. 0100352) or name..."
-              loading={searchingEmployees}
-              onSearchChange={handleEmployeeSearch}
-            />
-            <p className="text-xs text-slate-500">Search by employee code (Login ID) or full name.</p>
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Column 1: Examinee searchable select */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-slate-700">
+                Examinee <span className="text-red-500">*</span>
+              </label>
+              <SearchableSelect
+                options={employeeOptions}
+                selectedId={selectedEmployeeId}
+                onSelect={handleEmployeeSelect}
+                placeholder="Search employee by ID or name..."
+                searchPlaceholder="Type employee ID (e.g. 0100352) or name..."
+                loading={searchingEmployees}
+                onSearchChange={handleEmployeeSearch}
+              />
+              <p className="text-xs text-slate-500">Search by employee code (Login ID) or full name.</p>
+            </div>
 
-          {/* Row 2: Batch, Set, Grade searchable dropdowns */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Exam Batch */}
+            {/* Column 2: Exam Batch */}
             <div className="space-y-1.5">
               <label className="text-sm font-semibold text-slate-700">
                 Exam Batch <span className="text-red-500">*</span>
@@ -313,7 +323,7 @@ export const RegistrationPage: React.FC = () => {
               />
             </div>
 
-            {/* Question Set */}
+            {/* Column 3: Question Set */}
             <div className="space-y-1.5">
               <label className="text-sm font-semibold text-slate-700">
                 Question Set <span className="text-red-500">*</span>
@@ -328,9 +338,9 @@ export const RegistrationPage: React.FC = () => {
               />
             </div>
 
-            {/* Promoted Target Grade */}
+            {/* Column 4: Promoted Target Grade */}
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-slate-700">Promoted Target Grade (Optional)</label>
+              <label className="text-sm font-semibold text-slate-700">Promoted Target Grade</label>
               <SearchableSelect
                 options={gradeOptions}
                 selectedId={promotedGradeId}
@@ -447,6 +457,21 @@ export const RegistrationPage: React.FC = () => {
                 ))}
               </select>
             </div>
+            <div className="flex items-center space-x-2 w-full sm:w-auto">
+              <select
+                value={rosterSetFilter}
+                onChange={(e) => setRosterSetFilter(Number(e.target.value))}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm h-9 focus:outline-none focus:ring-1 focus:ring-blue-600 w-full sm:w-auto"
+              >
+                <option value="0">All Question Sets</option>
+                {rosterSetOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
 
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -456,22 +481,6 @@ export const RegistrationPage: React.FC = () => {
                 placeholder="Search by ID, name, designation, department..."
                 className="pl-9 h-9 text-sm bg-white"
               />
-            </div>
-
-            <div className="flex items-center space-x-2 w-full sm:w-auto">
-              <Filter className="h-4 w-4 text-slate-400 flex-shrink-0" />
-              <select
-                value={rosterSetFilter}
-                onChange={(e) => setRosterSetFilter(Number(e.target.value))}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm h-9 focus:outline-none focus:ring-1 focus:ring-blue-600 w-full sm:w-auto"
-              >
-                <option value="0">All Question Sets</option>
-                {sets.map((s) => (
-                  <option key={s.setId} value={s.setId}>
-                    {s.setName}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
         </CardHeader>

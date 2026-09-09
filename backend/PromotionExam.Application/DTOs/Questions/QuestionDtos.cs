@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using PromotionExam.Application.DTOs.Marking;
 
 namespace PromotionExam.Application.DTOs.Questions
 {
@@ -67,5 +69,27 @@ namespace PromotionExam.Application.DTOs.Questions
         public string? NarrativeAnswer { get; set; }
         public decimal Marks { get; set; }
         public List<QuestionOptionDto> Options { get; set; } = new();
+    }
+
+    public class RubricViewerQuestionDto
+    {
+        public int QuestionId { get; set; }
+        public string Question { get; set; } = string.Empty;
+        public decimal Marks { get; set; }
+        public string? NarrativeAnswer { get; set; }
+        public string RubricStatus { get; set; } = "NotGenerated"; // Ready | Outdated | NotGenerated
+        public int? RubricVersionNo { get; set; }
+        public string? RubricSummary { get; set; }
+        public string? RubricSourceModel { get; set; }
+        public DateTime? RubricGeneratedAt { get; set; }
+        public List<AiRubricCriterionDto> Criteria { get; set; } = new();
+    }
+
+    public class RubricViewerResponseDto
+    {
+        public int SetId { get; set; }
+        public string SetName { get; set; } = string.Empty;
+        public int TotalQuestions { get; set; }
+        public List<RubricViewerQuestionDto> Questions { get; set; } = new();
     }
 }

@@ -47,7 +47,7 @@ namespace PromotionExam.WebApi.Controllers
                 .FirstOrDefaultAsync(u => u.LoginId == request.LoginId.Trim() || (u.Email != null && u.Email == request.LoginId.Trim()));
 
             if (user == null)
-                return Unauthorized(new { message = "User not found or not authorized for Promotion Exam system." });
+                return Unauthorized(new { message = "User not found or not authorized for Promotion Assessment Platform." });
 
             if (user.IsActive == false)
                 return Unauthorized(new { message = "Your account is inactive. Please contact System Administrator." });
@@ -58,6 +58,7 @@ namespace PromotionExam.WebApi.Controllers
 
             var token = _jwt.GenerateToken(user);
             var menus = await GetUserMenusAsync(user.IsSuperAdmin == true);
+            var isExaminerOfActiveBatch = await IsExaminerOfActiveBatchAsync(user.HRRecordId);
 
             var response = new LoginResponseDto
             {
@@ -73,6 +74,7 @@ namespace PromotionExam.WebApi.Controllers
                 ProfilePhoto = user.ProfilePhotoPath,
                 IsAdmin = user.IsAdmin == true,
                 IsSuperAdmin = user.IsSuperAdmin == true,
+                IsExaminerOfActiveBatch = isExaminerOfActiveBatch,
                 Menus = menus
             };
 
@@ -104,6 +106,7 @@ namespace PromotionExam.WebApi.Controllers
                 return NotFound();
 
             var menus = await GetUserMenusAsync(user.IsSuperAdmin == true);
+            var isExaminerOfActiveBatch = await IsExaminerOfActiveBatchAsync(user.HRRecordId);
 
             return Ok(new
             {
@@ -119,6 +122,7 @@ namespace PromotionExam.WebApi.Controllers
                 user.ProfilePhotoPath,
                 IsAdmin = user.IsAdmin == true,
                 IsSuperAdmin = user.IsSuperAdmin == true,
+                IsExaminerOfActiveBatch = isExaminerOfActiveBatch,
                 Menus = menus
             });
         }
@@ -161,6 +165,18 @@ namespace PromotionExam.WebApi.Controllers
                 ip);
 
             return Ok(new { message = "Password changed successfully." });
+        }
+
+        private async Task<bool> IsExaminerOfActiveBatchAsync(long hrRecordId)
+        {
+            if (hrRecordId <= 0)
+                return false;
+
+            // An examiner assignment exists when the user is listed in Sys_Flowpath
+            // for a question set of a currently active exam batch.
+            return await _context.SysFlowpaths
+                .AnyAsync(f => f.ExaminerId == hrRecordId
+                    && _context.ExamBatches.Any(b => b.BatchId == f.BatchId && b.IsActive == true));
         }
 
         private async Task<List<MenuItemDto>> GetUserMenusAsync(bool isSuperAdmin)

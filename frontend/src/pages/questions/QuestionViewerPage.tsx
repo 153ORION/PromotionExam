@@ -3,7 +3,7 @@ import api from '@/services/api';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Filter, CheckCircle2, Circle, FileText, Layers } from 'lucide-react';
+import { Printer, BookOpenText, Sparkles, ShieldAlert, CircleSlash } from 'lucide-react';
 import { Question, QuestionSet } from '@/types';
 
 export const QuestionViewerPage: React.FC = () => {
@@ -125,10 +125,10 @@ export const QuestionViewerPage: React.FC = () => {
           </div>
         </Card>
       ) : (
-        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-4xl mx-auto space-y-6 print:p-0 print:border-none print:shadow-none">
+        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-8 space-y-6 print:p-0 print:border-none print:shadow-none">
           <div className="text-center border-b pb-6 space-y-2">
             <h2 className="text-xl font-bold uppercase tracking-wide text-slate-900">
-              Orion Group - Promotion Examination
+              ORION
             </h2>
             <h3 className="text-base font-semibold text-blue-800">{selectedSet?.setName || 'Question Paper'}</h3>
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs text-slate-500 pt-1">
@@ -176,11 +176,17 @@ export const QuestionViewerPage: React.FC = () => {
                   </div>
                 )}
 
-                {q.typeId === 2 && q.narrativeAnswer && (
-                  <div className="pl-6 text-xs text-slate-500 italic print:hidden">
-                    <span className="font-semibold text-amber-700">Reference Model Answer: </span>
-                    {q.narrativeAnswer}
-                  </div>
+                  {/* Reference Model Answer */}
+                  {q.typeId === 2 && q.narrativeAnswer && (
+                    <div className="pl-6 rounded-md bg-amber-50/60 border border-amber-100 p-3 space-y-1">
+                      <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-700">
+                        <BookOpenText className="h-3.5 w-3.5" />
+                        <span>Reference Model Answer</span>
+                      </div>
+                      <p className="text-xs text-slate-700 whitespace-pre-wrap">
+                        {q.narrativeAnswer || '— No reference model answer defined for this question. —'}
+                      </p>
+                    </div>
                 )}
               </div>
             ))}

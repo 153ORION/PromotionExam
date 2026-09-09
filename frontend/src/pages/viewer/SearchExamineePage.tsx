@@ -67,7 +67,7 @@ export const SearchExamineePage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Search Examinee</h2>
+        <h2 className="text-2xl font-bold text-slate-900">Examinee Viewer</h2>
         <p className="text-sm text-slate-500">Query and lookup registered candidate test records across departments and batches.</p>
       </div>
 

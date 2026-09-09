@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useSystemConfig } from '@/context/SystemConfigContext';
-import { 
-  LayoutDashboard, 
-  Eye, 
-  HelpCircle, 
-  CheckSquare, 
-  Users, 
-  Settings, 
-  ChevronDown, 
+import {
+  LayoutDashboard,
+  Eye,
+  HelpCircle,
+  CheckSquare,
+  Users,
+  Settings,
+  ChevronDown,
   ChevronRight,
   Search,
   FileQuestion,
@@ -19,13 +19,14 @@ import {
   Edit3,
   GitBranch,
   Clock,
-  UserX, 
-  UserPlus, 
+  UserX,
+  UserPlus,
   ShieldCheck,
   FileText,
   Activity,
   Building2,
-  Sparkles
+  Sparkles,
+  ListChecks
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -50,9 +51,27 @@ export const Sidebar: React.FC = () => {
   const isSuperAdmin = user?.isSuperAdmin === true;
   const isAdmin = user?.isAdmin === true || isSuperAdmin;
 
+  // Non-Admin/SuperAdmin users assigned as Examiner of any active exam batch
+  // get a restricted menu with only the examiner workflow items.
+  const isExaminerOnlyUser = !isAdmin && user?.isExaminerOfActiveBatch === true;
+
   return (
     <aside className="w-64 flex-shrink-0 border-r border-slate-200 bg-white flex flex-col justify-between h-full sticky top-16 overflow-y-auto">
       <div className="p-4 space-y-4">
+        {isExaminerOnlyUser ? (
+          /* Restricted Examiner Menu */
+          <div className="space-y-1">
+            <div className="px-3 pb-1 text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center space-x-2">
+              <Award className="h-3.5 w-3.5 text-rose-600" />
+              <span>Examiner Panel</span>
+            </div>
+            <SidebarItem to="/viewer/search-examinee" icon={<Search className="h-4 w-4" />} label="Examinee Viewer" />
+            <SidebarItem to="/question-bank/viewer" icon={<FileQuestion className="h-4 w-4" />} label="Question Viewer" />
+            <SidebarItem to="/viewer/rubrics" icon={<ListChecks className="h-4 w-4" />} label="Rubrics Viewer" />
+            <SidebarItem to="/marking/narrative-score" icon={<Award className="h-4 w-4" />} label="Narrative Score" />
+          </div>
+        ) : (
+        <>
         {/* Dashboard Link */}
         <NavLink
           to="/dashboard"
@@ -87,8 +106,9 @@ export const Sidebar: React.FC = () => {
 
           {openSections.viewer && (
             <div className="mt-1 space-y-1 pl-2">
-              <SidebarItem to="/viewer/search-examinee" icon={<Search className="h-4 w-4" />} label="Search Examinee" />
+              <SidebarItem to="/viewer/search-examinee" icon={<Search className="h-4 w-4" />} label="Examinee Viewer" />
               <SidebarItem to="/question-bank/viewer" icon={<FileQuestion className="h-4 w-4" />} label="Question Viewer" />
+              <SidebarItem to="/viewer/rubrics" icon={<ListChecks className="h-4 w-4" />} label="Rubrics Viewer" />
             </div>
           )}
         </div>
@@ -199,12 +219,14 @@ export const Sidebar: React.FC = () => {
             )}
           </div>
         )}
+        </>
+        )}
       </div>
 
       {/* Footer Info */}
       <div className="p-4 border-t border-slate-200 bg-slate-50 text-xs text-slate-500">
-        <div className="font-bold text-slate-700">{config?.companyName || 'ORION'} — Exam Portal</div>
-        <div>Candidate Assessment System</div>
+        <div className="font-bold text-slate-700">Developed by ORION IT</div>
+        <div>Powered by AI Examiner, Gemini</div>
       </div>
     </aside>
   );

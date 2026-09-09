@@ -43,7 +43,7 @@ export const SystemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // Dynamically update document title
     if (cfg.companyName) {
-      document.title = `${cfg.companyName} — Promotion Exam System`;
+      document.title = `${cfg.companyName} |`;
     }
 
     // Dynamically update favicon if logo exists

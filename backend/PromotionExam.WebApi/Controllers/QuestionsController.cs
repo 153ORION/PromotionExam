@@ -12,6 +12,7 @@ using PromotionExam.Application.DTOs.Marking;
 using PromotionExam.Application.DTOs.Questions;
 using PromotionExam.Domain.Entities;
 using PromotionExam.Infrastructure.Data;
+using System.Text.Json;
 
 namespace PromotionExam.WebApi.Controllers
 {
@@ -23,6 +24,14 @@ namespace PromotionExam.WebApi.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IAiMarkingService _aiMarkingService;
         private readonly IUserActivityService _activityService;
+
+        // Stored rubric criteria JSON is persisted with camelCase naming by AiMarkingService;
+        // parsing must be case-insensitive to bind property names correctly.
+        private static readonly JsonSerializerOptions RubricJsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
+        };
 
         public QuestionsController(
             ApplicationDbContext context,
@@ -420,6 +429,81 @@ namespace PromotionExam.WebApi.Controllers
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("sets/{setId}/rubrics")]
+        public async Task<IActionResult> GetSetRubricsForViewer(int setId)
+        {
+            var questionSet = await _context.QuestionSets.FindAsync(setId);
+            if (questionSet == null)
+                return NotFound(new { message = "Question Set not found." });
+
+            // Rubrics Viewer shows only Narrative questions (TypeId == 2) of the selected set.
+            // IsActive is nullable in Question_Bank: include NULL (legacy rows), exclude explicitly deactivated.
+            var narrativeQuestions = await _context.QuestionBanks
+                .Where(q => q.SetId == setId && q.TypeId == 2 && q.IsActive != false)
+                .OrderBy(q => q.QuestionId)
+                .ToListAsync();
+
+            var questionIds = narrativeQuestions.Select(q => q.QuestionId).ToList();
+            var activeRubrics = questionIds.Any()
+                ? await _context.AiRubricMasters
+                    .Where(r => questionIds.Contains(r.QuestionId) && r.IsActive)
+                    .GroupBy(r => r.QuestionId)
+                    .Select(g => g.OrderByDescending(x => x.VersionNo).First())
+                    .ToDictionaryAsync(r => r.QuestionId, r => r)
+                : new Dictionary<int, AiRubricMaster>();
+
+            var questions = new List<RubricViewerQuestionDto>();
+            foreach (var q in narrativeQuestions)
+            {
+                var dto = new RubricViewerQuestionDto
+                {
+                    QuestionId = q.QuestionId,
+                    Question = q.Question,
+                    Marks = q.Marks,
+                    NarrativeAnswer = q.NarrativeAnswer
+                };
+
+                if (activeRubrics.TryGetValue(q.QuestionId, out var rubric))
+                {
+                    var fingerprint = AiRubricFingerprint.Create(q.Question, q.NarrativeAnswer, q.Marks);
+                    var outdated = !string.Equals(rubric.RubricHash, fingerprint, StringComparison.OrdinalIgnoreCase);
+
+                    dto.RubricStatus = outdated ? "Outdated" : "Ready";
+                    dto.RubricVersionNo = rubric.VersionNo;
+                    dto.RubricSummary = rubric.RubricSummary;
+                    dto.RubricSourceModel = rubric.SourceModel;
+                    dto.RubricGeneratedAt = rubric.EntryDate;
+                    dto.Criteria = ParseRubricCriteria(rubric.CriteriaJson);
+                }
+
+                questions.Add(dto);
+            }
+
+            return Ok(new RubricViewerResponseDto
+            {
+                SetId = setId,
+                SetName = questionSet.SetName,
+                TotalQuestions = questions.Count,
+                Questions = questions
+            });
+        }
+
+        private static List<AiRubricCriterionDto> ParseRubricCriteria(string? criteriaJson)
+        {
+            if (string.IsNullOrWhiteSpace(criteriaJson))
+                return new List<AiRubricCriterionDto>();
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<AiRubricCriterionDto>>(criteriaJson, RubricJsonOptions)
+                    ?? new List<AiRubricCriterionDto>();
+            }
+            catch
+            {
+                return new List<AiRubricCriterionDto>();
             }
         }
 

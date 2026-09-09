@@ -13,7 +13,7 @@ export const Navbar: React.FC = () => {
       <div className="flex items-center space-x-3">
         <CompanyLogo className="h-10 w-auto max-h-11 max-w-[140px] object-contain flex-shrink-0" />
         <div>
-          <h1 className="text-lg font-bold text-slate-900 leading-tight">Promotion Exam Portal</h1>
+          <h1 className="text-lg font-bold text-slate-900 leading-tight">Promotion Assessment Platform</h1>
           <p className="text-xs text-slate-500 font-medium">Enterprise Assessment System</p>
         </div>
       </div>
