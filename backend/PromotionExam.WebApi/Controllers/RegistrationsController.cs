@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -173,7 +170,7 @@ namespace PromotionExam.WebApi.Controllers
             {
                 inactiveReg.ExamGradeId = dto.PromotedGradeId;
                 inactiveReg.IsActive = true;
-                inactiveReg.LastUpdateTime = DateTime.UtcNow;
+                inactiveReg.LastUpdateTime = DateTime.Now;
                 await _context.SaveChangesAsync();
 
                 return Ok(new { message = "Employee registered for exam batch successfully (reactivated previous registration).", examineeId = inactiveReg.ExamineeId });
@@ -189,7 +186,7 @@ namespace PromotionExam.WebApi.Controllers
                 IsExamEnd = false,
                 IsTimeExpire = false,
                 IsActive = true,
-                EntryDate = DateTime.UtcNow
+                EntryDate = DateTime.Now
             };
 
             _context.ExamRegistrations.Add(registration);
@@ -207,7 +204,7 @@ namespace PromotionExam.WebApi.Controllers
                 return NotFound(new { message = "Registration not found." });
 
             reg.IsActive = false;
-            reg.LastUpdateTime = DateTime.UtcNow;
+            reg.LastUpdateTime = DateTime.Now;
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Examinee unregistered successfully." });

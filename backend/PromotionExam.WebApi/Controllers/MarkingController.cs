@@ -427,7 +427,7 @@ namespace PromotionExam.WebApi.Controllers
             {
                 existing.Marks = dto.Marks;
                 existing.Remarks = dto.Remarks;
-                existing.UpdateDate = DateTime.UtcNow;
+                existing.UpdateDate = DateTime.Now;
             }
             else
             {
@@ -438,7 +438,7 @@ namespace PromotionExam.WebApi.Controllers
                     ExaminerId = examinerId,
                     Marks = dto.Marks,
                     Remarks = dto.Remarks,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
                 _context.ExamNarrativeScores.Add(score);
             }
@@ -513,7 +513,7 @@ namespace PromotionExam.WebApi.Controllers
                 {
                     existing.Marks = item.Marks;
                     existing.Remarks = item.Remarks;
-                    existing.UpdateDate = DateTime.UtcNow;
+                    existing.UpdateDate = DateTime.Now;
                 }
                 else
                 {
@@ -524,7 +524,7 @@ namespace PromotionExam.WebApi.Controllers
                         ExaminerId = examinerId,
                         Marks = item.Marks,
                         Remarks = item.Remarks,
-                        EntryDate = DateTime.UtcNow
+                        EntryDate = DateTime.Now
                     });
                 }
             }
@@ -613,7 +613,7 @@ namespace PromotionExam.WebApi.Controllers
             reg.WrittenScore = totalWritten;
             reg.TotalScore = (reg.MCQScore ?? 0) + totalWritten;
             reg.LastUpdateBy = (int)examinerId;
-            reg.LastUpdateTime = DateTime.UtcNow;
+            reg.LastUpdateTime = DateTime.Now;
             await _context.SaveChangesAsync();
 
             return totalWritten;

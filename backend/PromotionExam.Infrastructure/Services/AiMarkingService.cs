@@ -145,7 +145,7 @@ namespace PromotionExam.Infrastructure.Services
             if (activeRubric != null)
             {
                 activeRubric.IsActive = false;
-                activeRubric.UpdateDate = DateTime.UtcNow;
+                activeRubric.UpdateDate = DateTime.Now;
             }
 
             var rubric = new AiRubricMaster
@@ -162,7 +162,7 @@ namespace PromotionExam.Infrastructure.Services
                 PromptVersion = RubricPromptVersion,
                 IsActive = true,
                 GeneratedBy = requestedBy > 0 ? requestedBy : (long?)null,
-                EntryDate = DateTime.UtcNow,
+                EntryDate = DateTime.Now,
                 CriteriaJson = SerializeRubricCriteria(generated.Criteria)
             };
 
@@ -228,7 +228,7 @@ namespace PromotionExam.Infrastructure.Services
                     ExamineeId = examineeId,
                     QuestionId = questionId,
                     RubricMasterId = rubric.RubricMasterId,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
                 _context.ExamNarrativeAiEvaluations.Add(existing);
             }
@@ -247,7 +247,7 @@ namespace PromotionExam.Infrastructure.Services
             existing.SourceModel = GetModelName();
             existing.PromptVersion = EvaluationPromptVersion;
             existing.RequestedBy = requestedBy > 0 ? requestedBy : (long?)null;
-            existing.UpdateDate = DateTime.UtcNow;
+            existing.UpdateDate = DateTime.Now;
 
             await _context.SaveChangesAsync();
 
@@ -333,7 +333,7 @@ namespace PromotionExam.Infrastructure.Services
                         {
                             scoreRecord.Marks = evaluation.AwardedMarks;
                             scoreRecord.Remarks = remarksText;
-                            scoreRecord.UpdateDate = DateTime.UtcNow;
+                            scoreRecord.UpdateDate = DateTime.Now;
                         }
                         else
                         {
@@ -344,7 +344,7 @@ namespace PromotionExam.Infrastructure.Services
                                 ExaminerId = examinerId,
                                 Marks = evaluation.AwardedMarks,
                                 Remarks = remarksText,
-                                EntryDate = DateTime.UtcNow
+                                EntryDate = DateTime.Now
                             };
                             _context.ExamNarrativeScores.Add(newScore);
                             existingScores.Add(newScore);
@@ -493,7 +493,7 @@ namespace PromotionExam.Infrastructure.Services
             reg.WrittenScore = totalWritten;
             reg.TotalScore = (reg.MCQScore ?? 0) + totalWritten;
             reg.LastUpdateBy = (int)examinerId;
-            reg.LastUpdateTime = DateTime.UtcNow;
+            reg.LastUpdateTime = DateTime.Now;
             await _context.SaveChangesAsync();
 
             return totalWritten;

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PromotionExam.Application.Common.Interfaces;
+using PromotionExam.Application.DTOs.CandidateAttempt;
 using PromotionExam.Application.DTOs.Auth;
 using PromotionExam.Infrastructure.Data;
 
@@ -144,7 +145,7 @@ namespace PromotionExam.WebApi.Controllers
                 return BadRequest(new { message = "Current password does not match." });
 
             user.Password = _crypto.EncryptLegacy(request.NewPassword);
-            user.PasswordUpdateTime = DateTime.UtcNow;
+            user.PasswordUpdateTime = DateTime.Now;
             await _context.SaveChangesAsync();
 
             var role = user.IsSuperAdmin == true ? "SuperAdmin" : (user.IsAdmin == true ? "Admin" : "Examinee");
@@ -206,13 +207,13 @@ namespace PromotionExam.WebApi.Controllers
         #region -------- API Project Auth Endpoints --------
 
         [HttpGet("/Api/Auth/Login")]
-        public async Task<PromotionExam.Application.DTOs.CandidateAttempt.ResponseDTO> LegacyLogin([FromQuery] string employeeId, [FromQuery] string password)
+        public async Task<ResponseDTO> LegacyLogin([FromQuery] string employeeId, [FromQuery] string password)
         {
             return await _candidateExamService.UserLogin(employeeId, password);
         }
 
         [HttpPost("/Api/Auth/UpdatePassword")]
-        public async Task<PromotionExam.Application.DTOs.CandidateAttempt.ResponseDTO> LegacyUpdatePassword([FromQuery] string employeeId, [FromQuery] string password)
+        public async Task<ResponseDTO> LegacyUpdatePassword([FromQuery] string employeeId, [FromQuery] string password)
         {
             return await _candidateExamService.UpdatePassword(employeeId, password);
         }

@@ -38,7 +38,7 @@ namespace PromotionExam.Infrastructure.Services
                     ActionName = action,
                     Description = description,
                     IpAddress = ipAddress,
-                    Timestamp = DateTime.UtcNow,
+                    Timestamp = DateTime.Now,
                     DetailsJson = detailsJson
                 };
 

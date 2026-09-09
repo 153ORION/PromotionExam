@@ -9,7 +9,7 @@ namespace PromotionExam.Application.DTOs.CandidateAttempt
         public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
         public string Message { get; set; } = string.Empty;
         public object? Data { get; set; }
-        public DateTime serverTime { get; set; } = DateTime.UtcNow;
+        public DateTime serverTime { get; set; } = DateTime.Now;
     }
 
     public class ExamDashboardDTO
@@ -63,7 +63,7 @@ namespace PromotionExam.Application.DTOs.CandidateAttempt
         public DateTime examStart { get; set; }
         public DateTime examEnd { get; set; }
         public int examDuration { get; set; }
-        public DateTime serverTime { get; set; } = DateTime.UtcNow;
+        public DateTime serverTime { get; set; } = DateTime.Now;
         public int categoryId { get; set; }
         public int maxAcademic { get; set; }
         public int maxGeneral { get; set; }
@@ -99,19 +99,19 @@ namespace PromotionExam.Application.DTOs.CandidateAttempt
     public class ExamFinishDTO
     {
         public int examineeId { get; set; }
-        public DateTime machineTime { get; set; } = DateTime.UtcNow;
+        public DateTime machineTime { get; set; } = DateTime.Now;
         public List<SubmitAnsDTO> answer { get; set; } = new();
     }
 
     public class AnswerSubmitResult
     {
-        public DateTime currentTime { get; set; } = DateTime.UtcNow;
+        public DateTime currentTime { get; set; } = DateTime.Now;
         public string submitStatus { get; set; } = "Success";
     }
 
     public class ExamEndResult
     {
         public string submitStatus { get; set; } = "Success";
-        public DateTime submitTime { get; set; } = DateTime.UtcNow;
+        public DateTime submitTime { get; set; } = DateTime.Now;
     }
 }

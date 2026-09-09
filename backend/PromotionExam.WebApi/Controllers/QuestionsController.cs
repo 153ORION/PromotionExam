@@ -106,7 +106,7 @@ namespace PromotionExam.WebApi.Controllers
                 existing.GradeId = dto.GradeId;
                 existing.LocationId = dto.LocationId;
                 existing.ConcentrationId = dto.ConcentrationId;
-                existing.UpdateDate = DateTime.UtcNow;
+                existing.UpdateDate = DateTime.Now;
             }
             else
             {
@@ -118,7 +118,7 @@ namespace PromotionExam.WebApi.Controllers
                     LocationId = dto.LocationId,
                     ConcentrationId = dto.ConcentrationId,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
                 _context.QuestionSets.Add(newSet);
             }
@@ -308,7 +308,7 @@ namespace PromotionExam.WebApi.Controllers
                             AnswerDetails = opt.AnswerDetails.Trim(),
                             AnswerSerial = serial++,
                             AnswerIsRight = opt.IsRight ? 1 : 0,
-                            EntryDate = DateTime.UtcNow
+                            EntryDate = DateTime.Now
                         });
                     }
                 }
@@ -324,7 +324,7 @@ namespace PromotionExam.WebApi.Controllers
                     NarrativeAnswer = dto.TypeId == 2 ? dto.NarrativeAnswer?.Trim() : null,
                     Marks = dto.Marks,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
 
                 if (dto.TypeId == 1)
@@ -337,7 +337,7 @@ namespace PromotionExam.WebApi.Controllers
                             AnswerDetails = opt.AnswerDetails.Trim(),
                             AnswerSerial = serial++,
                             AnswerIsRight = opt.IsRight ? 1 : 0,
-                            EntryDate = DateTime.UtcNow
+                            EntryDate = DateTime.Now
                         });
                     }
                 }

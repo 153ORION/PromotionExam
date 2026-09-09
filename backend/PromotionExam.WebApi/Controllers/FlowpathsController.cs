@@ -108,7 +108,7 @@ namespace PromotionExam.WebApi.Controllers
                 ExaminerId = dto.ExaminerId,
                 Rank = dto.Rank > 0 ? dto.Rank : 1,
                 Approver = dto.Approver,
-                EntryDate = DateTime.UtcNow
+                EntryDate = DateTime.Now
             };
 
             _context.SysFlowpaths.Add(flowpath);

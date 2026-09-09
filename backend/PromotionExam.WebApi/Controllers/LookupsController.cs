@@ -69,7 +69,7 @@ namespace PromotionExam.WebApi.Controllers
                     return NotFound(new { message = "Lookup Type not found." });
 
                 existing.LookupType = dto.LookupType.Trim();
-                existing.UpdateDate = DateTime.UtcNow;
+                existing.UpdateDate = DateTime.Now;
             }
             else
             {
@@ -79,7 +79,7 @@ namespace PromotionExam.WebApi.Controllers
                     LookupType = dto.LookupType.Trim(),
                     Serial = nextSerial,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
                 _context.SysLookupTypes.Add(newType);
             }
@@ -153,7 +153,7 @@ namespace PromotionExam.WebApi.Controllers
                 existing.TypeId = dto.TypeId;
                 existing.LookupText = dto.LookupText.Trim();
                 existing.LookupTextShort = dto.LookupTextShort?.Trim();
-                existing.UpdateDate = DateTime.UtcNow;
+                existing.UpdateDate = DateTime.Now;
             }
             else
             {
@@ -165,7 +165,7 @@ namespace PromotionExam.WebApi.Controllers
                     LookupTextShort = dto.LookupTextShort?.Trim(),
                     Serial = nextSerial,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
                 _context.SysLookups.Add(newItem);
             }

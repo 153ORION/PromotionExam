@@ -62,7 +62,7 @@ namespace PromotionExam.Infrastructure.Security
                 issuer: issuer,
                 audience: audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(expiryHours),
+                expires: DateTime.Now.AddHours(expiryHours),
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using PromotionExam.Application.Common.Interfaces;
 
@@ -17,9 +15,11 @@ namespace PromotionExam.WebApi.Controllers
         }
 
         [HttpGet]
-        public async Task<string> SendMessage(string Receiver, string MessageBody, string Masking)
+        [ResponseCache(Duration = 30, Location = ResponseCacheLocation.Client, NoStore = false)]
+        public async Task<String> SendMessage(String Receiver, String MessageBody, String Masking)
         {
-            return await _candidateExamService.SendMessage(Receiver, MessageBody, Masking);
+            DateTime dateTime = DateTime.Now;
+            return dateTime.ToString();
         }
     }
 }

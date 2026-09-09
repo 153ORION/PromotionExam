@@ -31,7 +31,7 @@ namespace PromotionExam.Infrastructure.Data
                     IsAdmin = true,
                     IsSuperAdmin = true,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
 
                 var examinerUser = new SysUserRegistration
@@ -48,7 +48,7 @@ namespace PromotionExam.Infrastructure.Data
                     IsAdmin = true,
                     IsSuperAdmin = false,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
 
                 var examineeUser = new SysUserRegistration
@@ -66,7 +66,7 @@ namespace PromotionExam.Infrastructure.Data
                     IsAdmin = false,
                     IsSuperAdmin = false,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
 
                 context.SysUserRegistrations.AddRange(adminUser, examinerUser, examineeUser);
@@ -76,14 +76,14 @@ namespace PromotionExam.Infrastructure.Data
             // 2. Seed Lookup Types
             if (!context.SysLookupTypes.Any())
             {
-                var typeYear = new SysLookupType { LookupType = "ExamYear", Serial = 1, IsActive = true, EntryDate = DateTime.UtcNow };
-                var typeCompany = new SysLookupType { LookupType = "Company", Serial = 2, IsActive = true, EntryDate = DateTime.UtcNow };
-                var typeLocation = new SysLookupType { LookupType = "Location", Serial = 3, IsActive = true, EntryDate = DateTime.UtcNow };
-                var typeDepartment = new SysLookupType { LookupType = "Department", Serial = 4, IsActive = true, EntryDate = DateTime.UtcNow };
-                var typeSection = new SysLookupType { LookupType = "Section", Serial = 5, IsActive = true, EntryDate = DateTime.UtcNow };
-                var typeGrade = new SysLookupType { LookupType = "Grade", Serial = 6, IsActive = true, EntryDate = DateTime.UtcNow };
-                var typeConcentration = new SysLookupType { LookupType = "Concentration", Serial = 7, IsActive = true, EntryDate = DateTime.UtcNow };
-                var typeQuestionSet = new SysLookupType { LookupType = "QuestionSet", Serial = 8, IsActive = true, EntryDate = DateTime.UtcNow };
+                var typeYear = new SysLookupType { LookupType = "ExamYear", Serial = 1, IsActive = true, EntryDate = DateTime.Now };
+                var typeCompany = new SysLookupType { LookupType = "Company", Serial = 2, IsActive = true, EntryDate = DateTime.Now };
+                var typeLocation = new SysLookupType { LookupType = "Location", Serial = 3, IsActive = true, EntryDate = DateTime.Now };
+                var typeDepartment = new SysLookupType { LookupType = "Department", Serial = 4, IsActive = true, EntryDate = DateTime.Now };
+                var typeSection = new SysLookupType { LookupType = "Section", Serial = 5, IsActive = true, EntryDate = DateTime.Now };
+                var typeGrade = new SysLookupType { LookupType = "Grade", Serial = 6, IsActive = true, EntryDate = DateTime.Now };
+                var typeConcentration = new SysLookupType { LookupType = "Concentration", Serial = 7, IsActive = true, EntryDate = DateTime.Now };
+                var typeQuestionSet = new SysLookupType { LookupType = "QuestionSet", Serial = 8, IsActive = true, EntryDate = DateTime.Now };
 
                 context.SysLookupTypes.AddRange(typeYear, typeCompany, typeLocation, typeDepartment, typeSection, typeGrade, typeConcentration, typeQuestionSet);
                 context.SaveChanges();
@@ -92,44 +92,44 @@ namespace PromotionExam.Infrastructure.Data
                 var lookups = new List<SysLookup>
                 {
                     // ExamYear
-                    new SysLookup { TypeId = typeYear.TypeId, LookupText = "2024", LookupTextShort = "2024", Serial = 1, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeYear.TypeId, LookupText = "2025", LookupTextShort = "2025", Serial = 2, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeYear.TypeId, LookupText = "2026", LookupTextShort = "2026", Serial = 3, IsActive = true, EntryDate = DateTime.UtcNow },
+                    new SysLookup { TypeId = typeYear.TypeId, LookupText = "2024", LookupTextShort = "2024", Serial = 1, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeYear.TypeId, LookupText = "2025", LookupTextShort = "2025", Serial = 2, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeYear.TypeId, LookupText = "2026", LookupTextShort = "2026", Serial = 3, IsActive = true, EntryDate = DateTime.Now },
 
                     // Company
-                    new SysLookup { TypeId = typeCompany.TypeId, LookupText = "Orion Group", LookupTextShort = "OG", Serial = 1, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeCompany.TypeId, LookupText = "Orion Pharma Ltd", LookupTextShort = "OPL", Serial = 2, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeCompany.TypeId, LookupText = "Orion Power Dhaka Ltd", LookupTextShort = "OPDL", Serial = 3, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeCompany.TypeId, LookupText = "Orion Infrastructure Ltd", LookupTextShort = "OIL", Serial = 4, IsActive = true, EntryDate = DateTime.UtcNow },
+                    new SysLookup { TypeId = typeCompany.TypeId, LookupText = "Orion Group", LookupTextShort = "OG", Serial = 1, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeCompany.TypeId, LookupText = "Orion Pharma Ltd", LookupTextShort = "OPL", Serial = 2, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeCompany.TypeId, LookupText = "Orion Power Dhaka Ltd", LookupTextShort = "OPDL", Serial = 3, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeCompany.TypeId, LookupText = "Orion Infrastructure Ltd", LookupTextShort = "OIL", Serial = 4, IsActive = true, EntryDate = DateTime.Now },
 
                     // Location
-                    new SysLookup { TypeId = typeLocation.TypeId, LookupText = "Head Office, Tejgaon", LookupTextShort = "HO", Serial = 1, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeLocation.TypeId, LookupText = "Siddhirganj Power Plant", LookupTextShort = "SPP", Serial = 2, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeLocation.TypeId, LookupText = "Rupsha Power Plant", LookupTextShort = "RPP", Serial = 3, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeLocation.TypeId, LookupText = "Pharma Plant, Tongi", LookupTextShort = "PPT", Serial = 4, IsActive = true, EntryDate = DateTime.UtcNow },
+                    new SysLookup { TypeId = typeLocation.TypeId, LookupText = "Head Office, Tejgaon", LookupTextShort = "HO", Serial = 1, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeLocation.TypeId, LookupText = "Siddhirganj Power Plant", LookupTextShort = "SPP", Serial = 2, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeLocation.TypeId, LookupText = "Rupsha Power Plant", LookupTextShort = "RPP", Serial = 3, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeLocation.TypeId, LookupText = "Pharma Plant, Tongi", LookupTextShort = "PPT", Serial = 4, IsActive = true, EntryDate = DateTime.Now },
 
                     // Department
-                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Information Technology", LookupTextShort = "IT", Serial = 1, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Electrical & Instrumentation", LookupTextShort = "E&I", Serial = 2, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Mechanical Engineering", LookupTextShort = "ME", Serial = 3, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Human Resources & Admin", LookupTextShort = "HR", Serial = 4, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Finance & Accounts", LookupTextShort = "F&A", Serial = 5, IsActive = true, EntryDate = DateTime.UtcNow },
+                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Information Technology", LookupTextShort = "IT", Serial = 1, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Electrical & Instrumentation", LookupTextShort = "E&I", Serial = 2, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Mechanical Engineering", LookupTextShort = "ME", Serial = 3, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Human Resources & Admin", LookupTextShort = "HR", Serial = 4, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeDepartment.TypeId, LookupText = "Finance & Accounts", LookupTextShort = "F&A", Serial = 5, IsActive = true, EntryDate = DateTime.Now },
 
                     // Section
-                    new SysLookup { TypeId = typeSection.TypeId, LookupText = "Software & Systems", LookupTextShort = "SW", Serial = 1, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeSection.TypeId, LookupText = "Plant Operations", LookupTextShort = "OPS", Serial = 2, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeSection.TypeId, LookupText = "Turbine Maintenance", LookupTextShort = "TM", Serial = 3, IsActive = true, EntryDate = DateTime.UtcNow },
+                    new SysLookup { TypeId = typeSection.TypeId, LookupText = "Software & Systems", LookupTextShort = "SW", Serial = 1, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeSection.TypeId, LookupText = "Plant Operations", LookupTextShort = "OPS", Serial = 2, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeSection.TypeId, LookupText = "Turbine Maintenance", LookupTextShort = "TM", Serial = 3, IsActive = true, EntryDate = DateTime.Now },
 
                     // Grade
-                    new SysLookup { TypeId = typeGrade.TypeId, LookupText = "Grade-C", LookupTextShort = "G-C", Serial = 1, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeGrade.TypeId, LookupText = "Grade-D", LookupTextShort = "G-D", Serial = 2, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeGrade.TypeId, LookupText = "Grade-E", LookupTextShort = "G-E", Serial = 3, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeGrade.TypeId, LookupText = "Grade-F", LookupTextShort = "G-F", Serial = 4, IsActive = true, EntryDate = DateTime.UtcNow },
+                    new SysLookup { TypeId = typeGrade.TypeId, LookupText = "Grade-C", LookupTextShort = "G-C", Serial = 1, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeGrade.TypeId, LookupText = "Grade-D", LookupTextShort = "G-D", Serial = 2, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeGrade.TypeId, LookupText = "Grade-E", LookupTextShort = "G-E", Serial = 3, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeGrade.TypeId, LookupText = "Grade-F", LookupTextShort = "G-F", Serial = 4, IsActive = true, EntryDate = DateTime.Now },
 
                     // Concentration
-                    new SysLookup { TypeId = typeConcentration.TypeId, LookupText = "Renewable & Solar Energy", LookupTextShort = "SOLAR", Serial = 1, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeConcentration.TypeId, LookupText = "Thermal Power Generation", LookupTextShort = "THERMAL", Serial = 2, IsActive = true, EntryDate = DateTime.UtcNow },
-                    new SysLookup { TypeId = typeConcentration.TypeId, LookupText = "Network & Infrastructure", LookupTextShort = "NET", Serial = 3, IsActive = true, EntryDate = DateTime.UtcNow }
+                    new SysLookup { TypeId = typeConcentration.TypeId, LookupText = "Renewable & Solar Energy", LookupTextShort = "SOLAR", Serial = 1, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeConcentration.TypeId, LookupText = "Thermal Power Generation", LookupTextShort = "THERMAL", Serial = 2, IsActive = true, EntryDate = DateTime.Now },
+                    new SysLookup { TypeId = typeConcentration.TypeId, LookupText = "Network & Infrastructure", LookupTextShort = "NET", Serial = 3, IsActive = true, EntryDate = DateTime.Now }
                 };
 
                 context.SysLookups.AddRange(lookups);
@@ -198,7 +198,7 @@ namespace PromotionExam.Infrastructure.Data
                     LocationId = 2,
                     ConcentrationId = 1,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
                 context.QuestionSets.Add(qSet);
                 context.SaveChanges();
@@ -211,16 +211,16 @@ namespace PromotionExam.Infrastructure.Data
                     Question = "What type of technology is typically used to implement MPPT algorithms in solar inverters?",
                     Marks = 1.0m,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
                 context.QuestionBanks.Add(mcq1);
                 context.SaveChanges();
 
                 context.QuestionBankAnswers.AddRange(
-                    new QuestionBankAnswer { QuestionId = mcq1.QuestionId, AnswerDetails = "Microcontrollers & DSPs", AnswerSerial = 1, AnswerIsRight = 1, EntryDate = DateTime.UtcNow },
-                    new QuestionBankAnswer { QuestionId = mcq1.QuestionId, AnswerDetails = "Relays only", AnswerSerial = 2, AnswerIsRight = 0, EntryDate = DateTime.UtcNow },
-                    new QuestionBankAnswer { QuestionId = mcq1.QuestionId, AnswerDetails = "Step-up Transformers", AnswerSerial = 3, AnswerIsRight = 0, EntryDate = DateTime.UtcNow },
-                    new QuestionBankAnswer { QuestionId = mcq1.QuestionId, AnswerDetails = "Chemical Batteries", AnswerSerial = 4, AnswerIsRight = 0, EntryDate = DateTime.UtcNow }
+                    new QuestionBankAnswer { QuestionId = mcq1.QuestionId, AnswerDetails = "Microcontrollers & DSPs", AnswerSerial = 1, AnswerIsRight = 1, EntryDate = DateTime.Now },
+                    new QuestionBankAnswer { QuestionId = mcq1.QuestionId, AnswerDetails = "Relays only", AnswerSerial = 2, AnswerIsRight = 0, EntryDate = DateTime.Now },
+                    new QuestionBankAnswer { QuestionId = mcq1.QuestionId, AnswerDetails = "Step-up Transformers", AnswerSerial = 3, AnswerIsRight = 0, EntryDate = DateTime.Now },
+                    new QuestionBankAnswer { QuestionId = mcq1.QuestionId, AnswerDetails = "Chemical Batteries", AnswerSerial = 4, AnswerIsRight = 0, EntryDate = DateTime.Now }
                 );
 
                 var mcq2 = new QuestionBank
@@ -230,16 +230,16 @@ namespace PromotionExam.Infrastructure.Data
                     Question = "What is the primary function of a synchronization panel in a power generation facility?",
                     Marks = 1.0m,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
                 context.QuestionBanks.Add(mcq2);
                 context.SaveChanges();
 
                 context.QuestionBankAnswers.AddRange(
-                    new QuestionBankAnswer { QuestionId = mcq2.QuestionId, AnswerDetails = "Match voltage, frequency, and phase angle before connecting to grid", AnswerSerial = 1, AnswerIsRight = 1, EntryDate = DateTime.UtcNow },
-                    new QuestionBankAnswer { QuestionId = mcq2.QuestionId, AnswerDetails = "Cool the generator stator windings", AnswerSerial = 2, AnswerIsRight = 0, EntryDate = DateTime.UtcNow },
-                    new QuestionBankAnswer { QuestionId = mcq2.QuestionId, AnswerDetails = "Measure fuel flow rate", AnswerSerial = 3, AnswerIsRight = 0, EntryDate = DateTime.UtcNow },
-                    new QuestionBankAnswer { QuestionId = mcq2.QuestionId, AnswerDetails = "Calculate turbine exhaust temperature", AnswerSerial = 4, AnswerIsRight = 0, EntryDate = DateTime.UtcNow }
+                    new QuestionBankAnswer { QuestionId = mcq2.QuestionId, AnswerDetails = "Match voltage, frequency, and phase angle before connecting to grid", AnswerSerial = 1, AnswerIsRight = 1, EntryDate = DateTime.Now },
+                    new QuestionBankAnswer { QuestionId = mcq2.QuestionId, AnswerDetails = "Cool the generator stator windings", AnswerSerial = 2, AnswerIsRight = 0, EntryDate = DateTime.Now },
+                    new QuestionBankAnswer { QuestionId = mcq2.QuestionId, AnswerDetails = "Measure fuel flow rate", AnswerSerial = 3, AnswerIsRight = 0, EntryDate = DateTime.Now },
+                    new QuestionBankAnswer { QuestionId = mcq2.QuestionId, AnswerDetails = "Calculate turbine exhaust temperature", AnswerSerial = 4, AnswerIsRight = 0, EntryDate = DateTime.Now }
                 );
 
                 // Seed Sample Narrative Question
@@ -251,7 +251,7 @@ namespace PromotionExam.Infrastructure.Data
                     NarrativeAnswer = "1. Inspect DC combiner box and verify string voltages.\n2. Close DC isolator switch.\n3. Turn on AC breaker.\n4. Verify grid sync parameters on control display.\n5. Confirm operational LED indicators.",
                     Marks = 10.0m,
                     IsActive = true,
-                    EntryDate = DateTime.UtcNow
+                    EntryDate = DateTime.Now
                 };
                 context.QuestionBanks.Add(narrative1);
                 context.SaveChanges();
@@ -261,8 +261,8 @@ namespace PromotionExam.Infrastructure.Data
                 {
                     ExamName = "Promotion Exam 2026 - Batch 1",
                     ExamYear = 2026,
-                    ExamStart = DateTime.UtcNow.AddDays(-1),
-                    ExamEnd = DateTime.UtcNow.AddDays(30),
+                    ExamStart = DateTime.Now.AddDays(-1),
+                    ExamEnd = DateTime.Now.AddDays(30),
                     MCQQuestion = 20,
                     MaxMCQ = 20,
                     MCQMark = 20.0m,
@@ -289,7 +289,7 @@ namespace PromotionExam.Infrastructure.Data
                         IsExamEnd = false,
                         IsTimeExpire = false,
                         IsActive = true,
-                        EntryDate = DateTime.UtcNow
+                        EntryDate = DateTime.Now
                     };
                     context.ExamRegistrations.Add(registration);
                     context.SaveChanges();

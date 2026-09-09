@@ -58,7 +58,7 @@ namespace PromotionExam.WebApi.Controllers
                     WebsiteUrl = "https://www.orion-group.net",
                     LogoUrl = "/uploads/logos/default_logo.png",
                     ExamTermsNotice = "Candidates must adhere strictly to exam time limits and institutional honor code regulations.",
-                    LastUpdatedDate = DateTime.UtcNow,
+                    LastUpdatedDate = DateTime.Now,
                     UpdatedBy = "system"
                 };
                 _context.SysCompanyConfigs.Add(config);
@@ -145,7 +145,7 @@ namespace PromotionExam.WebApi.Controllers
             long.TryParse(userIdClaim, out var userId);
             var userName = User.Identity?.Name ?? "Admin";
 
-            config.LastUpdatedDate = DateTime.UtcNow;
+            config.LastUpdatedDate = DateTime.Now;
             config.UpdatedBy = userName;
 
             await _context.SaveChangesAsync();
@@ -213,7 +213,7 @@ namespace PromotionExam.WebApi.Controllers
                 Directory.CreateDirectory(uploadsFolder);
             }
 
-            var uniqueFileName = $"logo_{DateTime.UtcNow:yyyyMMdd_HHmmss}_{Guid.NewGuid().ToString("N").Substring(0, 8)}{ext}";
+            var uniqueFileName = $"logo_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid().ToString("N").Substring(0, 8)}{ext}";
             var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
             using (var stream = new FileStream(filePath, FileMode.Create))
@@ -228,7 +228,7 @@ namespace PromotionExam.WebApi.Controllers
             if (config != null)
             {
                 config.LogoUrl = relativePath;
-                config.LastUpdatedDate = DateTime.UtcNow;
+                config.LastUpdatedDate = DateTime.Now;
                 await _context.SaveChangesAsync();
             }
 

@@ -40,7 +40,7 @@ namespace PromotionExam.Domain.Entities
         [StringLength(50)]
         public string? IpAddress { get; set; }
 
-        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
 
         public string? DetailsJson { get; set; }
 

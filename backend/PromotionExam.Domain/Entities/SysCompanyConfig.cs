@@ -40,7 +40,7 @@ namespace PromotionExam.Domain.Entities
 
         public string? OpenAiApiKey { get; set; }
 
-        public DateTime LastUpdatedDate { get; set; } = DateTime.UtcNow;
+        public DateTime LastUpdatedDate { get; set; } = DateTime.Now;
 
         [StringLength(100)]
         public string? UpdatedBy { get; set; } = "admin";
