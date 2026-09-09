@@ -119,4 +119,18 @@ namespace PromotionExam.Application.DTOs.Marking
         public string StandardAnswer { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
     }
+
+    public class AiAutoMarkQuestionRequestDto
+    {
+        public int ExamineeId { get; set; }
+        public int QuestionId { get; set; }
+        public bool ForceReevaluate { get; set; } = false;
+    }
+
+    public class AiAutoMarkQuestionResultDto
+    {
+        public QuestionAutoMarkItemDto Question { get; set; } = new();
+        public decimal? TotalWrittenScore { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
 }

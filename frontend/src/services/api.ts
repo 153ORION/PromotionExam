@@ -5,6 +5,10 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // AI marking requests can take 10-30s per Gemini call. A hard timeout guarantees
+  // the UI never keeps a button stuck in "Analyzing.../Processing" forever when a
+  // request hangs (e.g. dropped internet connection mid-call).
+  timeout: 120000,
 });
 
 // Request interceptor: attach token

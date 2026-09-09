@@ -115,6 +115,51 @@ namespace PromotionExam.WebApi.Controllers
             return (isFinalized, approverFlow, approverUser, approverTotal);
         }
 
+        private sealed class MarkingLockState
+        {
+            public SysFlowpath? ApproverFlow { get; set; }
+            public SysUserRegistration? ApproverUser { get; set; }
+            public List<QuestionBank> NarrativeQuestions { get; set; } = new();
+            public HashSet<int> LockedQuestionIds { get; set; } = new();
+            public bool IsFullyFinalized { get; set; }
+        }
+
+        // Rule: Examiner/AI Examiner Marking → Final Approver Marking → Question Locked.
+        // A question marked by the Final Approver (at any time) is immediately considered finalized
+        // and locked: no other examiner (including the AI Examiner) may mark or rescore it afterward.
+        // Examiners and the AI Examiner can only mark a question BEFORE the Final Approver marks it.
+        private async Task<MarkingLockState> GetMarkingLockStateAsync(ExamRegistration reg, List<ExamNarrativeScore>? preloadedScores = null)
+        {
+            var state = new MarkingLockState();
+
+            state.ApproverFlow = await _context.SysFlowpaths
+                .FirstOrDefaultAsync(f => f.BatchId == reg.BatchId && f.ExamSetId == reg.QuestionSetId && f.Approver == true);
+
+            if (state.ApproverFlow == null)
+                return state;
+
+            state.ApproverUser = await _context.SysUserRegistrations.FindAsync((long)state.ApproverFlow.ExaminerId);
+
+            state.NarrativeQuestions = await GetCandidateNarrativeQuestionsListAsync(reg);
+            if (!state.NarrativeQuestions.Any())
+                return state;
+
+            var scores = preloadedScores ?? await _context.ExamNarrativeScores
+                .Where(s => s.ExamineeId == reg.ExamineeId)
+                .ToListAsync();
+
+            var questionIds = state.NarrativeQuestions.Select(q => q.QuestionId).ToHashSet();
+
+            state.LockedQuestionIds = scores
+                .Where(s => s.ExaminerId == state.ApproverFlow.ExaminerId && questionIds.Contains(s.QuestionId))
+                .Select(s => s.QuestionId)
+                .ToHashSet();
+
+            state.IsFullyFinalized = state.LockedQuestionIds.Count >= state.NarrativeQuestions.Count;
+
+            return state;
+        }
+
         [HttpGet("candidates")]
         public async Task<IActionResult> GetCandidatesForMarking([FromQuery] int batchId, [FromQuery] int setId)
         {
@@ -228,7 +273,7 @@ namespace PromotionExam.WebApi.Controllers
                 : new List<ExamNarrativeAiEvaluation>();
             var aiEvaluationMap = aiEvaluations.ToDictionary(e => (e.QuestionId, e.RubricMasterId), e => e);
 
-            var (isFinalized, approverFlow, approverUser, approverTotalScore) = await CheckIsMarkingFinalizedAsync(reg, candidateScores);
+            var lockState = await GetMarkingLockStateAsync(reg, candidateScores);
 
             var examinerIds = candidateScores.Select(s => s.ExaminerId).Distinct().ToList();
             if (examinerId > 0 && !examinerIds.Contains(examinerId))
@@ -242,12 +287,14 @@ namespace PromotionExam.WebApi.Controllers
                 .Where(f => f.BatchId == reg.BatchId && f.ExamSetId == reg.QuestionSetId)
                 .ToDictionaryAsync(f => (long)f.ExaminerId, f => new { f.Rank, f.Approver });
 
-            bool isCurrentExaminerApprover = approverFlow != null && examinerId == approverFlow.ExaminerId;
-            bool canEdit = !isFinalized || isCurrentExaminerApprover;
+            bool isCurrentExaminerApprover = lockState.ApproverFlow != null && examinerId == lockState.ApproverFlow.ExaminerId;
 
             var result = narrativeQuestions.Select(q =>
             {
                 var questionScores = candidateScores.Where(s => s.QuestionId == q.QuestionId).ToList();
+
+                // Per-question lock: a question already marked by the Final Approver is finalized & locked
+                bool questionLockedByApprover = lockState.LockedQuestionIds.Contains(q.QuestionId);
 
                 var myScoreRecord = questionScores.FirstOrDefault(s => s.ExaminerId == examinerId);
                 decimal? myMarks = myScoreRecord?.Marks;
@@ -303,9 +350,9 @@ namespace PromotionExam.WebApi.Controllers
                     ExaminerScores = previewList,
                     AwardedMarks = myMarks ?? avgMarks,
                     Remarks = myRemarks ?? questionScores.LastOrDefault()?.Remarks,
-                    IsFinalized = isFinalized,
-                    CanEdit = canEdit,
-                    FinalApproverName = approverUser?.Name,
+                    IsFinalized = questionLockedByApprover,
+                    CanEdit = !questionLockedByApprover || isCurrentExaminerApprover,
+                    FinalApproverName = lockState.ApproverUser?.Name,
                     IsCurrentExaminerApprover = isCurrentExaminerApprover,
                     AiRubricStatus = GetAiRubricStatus(q, activeRubrics),
                     AiRubricVersionNo = activeRubrics.ContainsKey(q.QuestionId) ? activeRubrics[q.QuestionId].VersionNo : null,
@@ -326,6 +373,24 @@ namespace PromotionExam.WebApi.Controllers
 
             try
             {
+                var reg = await _context.ExamRegistrations
+                    .FirstOrDefaultAsync(r => r.ExamineeId == dto.ExamineeId);
+
+                if (reg == null)
+                    return NotFound(new { message = "Examinee registration not found." });
+
+                // Rule: Examiner/AI Examiner Marking → Final Approver Marking → Question Locked.
+                // The AI Examiner cannot evaluate a question the Final Approver has already marked.
+                var lockState = await GetMarkingLockStateAsync(reg);
+                bool isCurrentExaminerApprover = lockState.ApproverFlow != null && examinerId == lockState.ApproverFlow.ExaminerId;
+
+                if (!isCurrentExaminerApprover && lockState.LockedQuestionIds.Contains(dto.QuestionId))
+                {
+                    return BadRequest(new {
+                        message = $"Question #{dto.QuestionId} has already been marked by the Final Approver ({lockState.ApproverUser?.Name ?? "Final Approver"}) and is locked. AI evaluation cannot be performed on this question anymore."
+                    });
+                }
+
                 var evaluation = await _aiMarkingService.EvaluateAnswerAsync(dto.ExamineeId, dto.QuestionId, dto.ForceReevaluate, examinerId);
 
                 var examiner = await _context.SysUserRegistrations.FindAsync(examinerId);
@@ -363,7 +428,7 @@ namespace PromotionExam.WebApi.Controllers
             if (reg == null)
                 return NotFound(new { message = "Examinee registration not found." });
 
-            var (isFinalized, approverFlow, approverUser, _) = await CheckIsMarkingFinalizedAsync(reg);
+            var lockState = await GetMarkingLockStateAsync(reg);
             bool autoApply = dto?.AutoApplyScores ?? true;
 
             // Resolve the AI Examiner identity: scores applied by auto-marking are recorded
@@ -374,11 +439,13 @@ namespace PromotionExam.WebApi.Controllers
             var scoringExaminerId = aiExaminer != null ? aiExaminer.HRRecordId : examinerId;
             var scoringExaminerName = aiExaminer?.Name ?? "AI Examiner";
 
-            // If finalized and the scoring examiner (AI Examiner) is not the Final Approver, do not allow applying scores
-            if (isFinalized && scoringExaminerId != (approverFlow?.ExaminerId ?? 0) && autoApply)
+            // Rule: Examiner/AI Examiner Marking → Final Approver Marking → Question Locked.
+            // Once the Final Approver has completed the marking, the AI Examiner can no longer evaluate,
+            // mark, or rescore any question of this candidate.
+            if (lockState.IsFullyFinalized && scoringExaminerId != (lockState.ApproverFlow?.ExaminerId ?? 0))
             {
                 return BadRequest(new {
-                    message = $"Marking for this candidate has been finalized by the Final Approver ({approverUser?.Name ?? "Final Approver"}). Scores cannot be overwritten."
+                    message = $"Marking for this candidate has been finalized by the Final Approver ({lockState.ApproverUser?.Name ?? "Final Approver"}). AI Examiner marking is locked — questions cannot be evaluated, marked, or rescored anymore."
                 });
             }
 
@@ -407,6 +474,156 @@ namespace PromotionExam.WebApi.Controllers
             }
         }
 
+        [HttpPost("ai-auto-mark-question")]
+        public async Task<IActionResult> AiAutoMarkQuestion([FromBody] AiAutoMarkQuestionRequestDto dto)
+        {
+            var examinerId = GetCurrentExaminerId();
+            if (examinerId <= 0)
+                return Unauthorized(new { message = "Examiner authentication required." });
+
+            var reg = await _context.ExamRegistrations
+                .Include(r => r.User)
+                .Include(r => r.Batch)
+                .FirstOrDefaultAsync(r => r.ExamineeId == dto.ExamineeId);
+
+            if (reg == null)
+                return NotFound(new { message = "Examinee registration not found." });
+
+            // Resolve AI Examiner identity (employee 0000000)
+            var aiExaminer = await _context.SysUserRegistrations
+                .FirstOrDefaultAsync(u => u.LoginId == "0000000" && u.IsActive == true);
+            var scoringExaminerId = aiExaminer != null ? aiExaminer.HRRecordId : examinerId;
+            var scoringExaminerName = aiExaminer?.Name ?? "AI Examiner";
+
+            // Check per-question lock state
+            var lockState = await GetMarkingLockStateAsync(reg);
+            bool scoringExaminerIsApprover = lockState.ApproverFlow != null && scoringExaminerId == lockState.ApproverFlow.ExaminerId;
+
+            if (!scoringExaminerIsApprover && lockState.LockedQuestionIds.Contains(dto.QuestionId))
+            {
+                return BadRequest(new
+                {
+                    message = $"Question #{dto.QuestionId} has already been marked by the Final Approver ({lockState.ApproverUser?.Name ?? "Final Approver"}) and is locked. AI marking cannot be performed on this question.",
+                    question = new QuestionAutoMarkItemDto
+                    {
+                        QuestionId = dto.QuestionId,
+                        Status = "Locked",
+                        Remarks = "Already marked by the Final Approver — question is locked."
+                    }
+                });
+            }
+
+            // Verify the question belongs to this examinee's narrative questions
+            var candidateQuestions = await GetCandidateNarrativeQuestionsListAsync(reg);
+            var question = candidateQuestions.FirstOrDefault(q => q.QuestionId == dto.QuestionId);
+            if (question == null)
+            {
+                return NotFound(new
+                {
+                    message = $"Question #{dto.QuestionId} is not a narrative question assigned to this examinee.",
+                    question = new QuestionAutoMarkItemDto
+                    {
+                        QuestionId = dto.QuestionId,
+                        Status = "Error",
+                        Remarks = "Question not found in examinee's narrative question sheet."
+                    }
+                });
+            }
+
+            QuestionAutoMarkItemDto resultItem;
+            decimal? recalculatedWritten = null;
+
+            try
+            {
+                var evaluation = await _aiMarkingService.EvaluateAnswerAsync(dto.ExamineeId, dto.QuestionId, dto.ForceReevaluate, scoringExaminerId);
+
+                resultItem = new QuestionAutoMarkItemDto
+                {
+                    QuestionId = question.QuestionId,
+                    Question = question.Question,
+                    MaxMarks = question.Marks,
+                    AwardedMarks = evaluation.AwardedMarks,
+                    Status = evaluation.IsCached ? "CachedEvaluation" : "Evaluated",
+                    Remarks = evaluation.Summary,
+                    Evaluation = evaluation
+                };
+
+                // Auto-apply score
+                var summaryParts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(evaluation.Summary))
+                    summaryParts.Add(evaluation.Summary);
+                if (evaluation.MissingPoints.Any())
+                    summaryParts.Add("Missing: " + string.Join("; ", evaluation.MissingPoints));
+                if (evaluation.IncorrectPoints.Any())
+                    summaryParts.Add("Incorrect: " + string.Join("; ", evaluation.IncorrectPoints));
+
+                var remarksText = summaryParts.Any() ? string.Join(" | ", summaryParts) : "Auto-marked by Gemini AI.";
+
+                var existingScore = await _context.ExamNarrativeScores
+                    .FirstOrDefaultAsync(s => s.ExamineeId == dto.ExamineeId && s.QuestionId == dto.QuestionId && s.ExaminerId == scoringExaminerId);
+
+                if (existingScore != null)
+                {
+                    existingScore.Marks = evaluation.AwardedMarks;
+                    existingScore.Remarks = remarksText;
+                    existingScore.UpdateDate = DateTime.Now;
+                }
+                else
+                {
+                    _context.ExamNarrativeScores.Add(new ExamNarrativeScore
+                    {
+                        ExamineeId = dto.ExamineeId,
+                        QuestionId = dto.QuestionId,
+                        ExaminerId = scoringExaminerId,
+                        Marks = evaluation.AwardedMarks,
+                        Remarks = remarksText,
+                        EntryDate = DateTime.Now
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+                recalculatedWritten = await RecalculateExamineeWrittenScoreAsync(dto.ExamineeId, scoringExaminerId);
+
+                var examiner = await _context.SysUserRegistrations.FindAsync(examinerId);
+                var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                await _activityService.LogAsync(
+                    examinerId,
+                    examiner?.LoginId ?? examinerId.ToString(),
+                    examiner?.Name ?? "Examiner",
+                    "Admin",
+                    "AI_MARKING",
+                    dto.ForceReevaluate ? "AI_MARK_QUESTION_REEVALUATE" : "AI_MARK_QUESTION_EVALUATE",
+                    $"AI auto-marked Question #{dto.QuestionId} for Examinee #{dto.ExamineeId} ({reg.User?.Name ?? "Candidate"}) via AI Examiner '{scoringExaminerName}': {evaluation.AwardedMarks}/{question.Marks} marks.",
+                    ip);
+            }
+            catch (Exception ex)
+            {
+                resultItem = new QuestionAutoMarkItemDto
+                {
+                    QuestionId = question.QuestionId,
+                    Question = question.Question,
+                    MaxMarks = question.Marks,
+                    AwardedMarks = 0,
+                    Status = "Error",
+                    Remarks = ex.Message
+                };
+
+                return Ok(new AiAutoMarkQuestionResultDto
+                {
+                    Question = resultItem,
+                    TotalWrittenScore = null,
+                    Message = $"Failed to AI-mark Question #{dto.QuestionId}: {ex.Message}"
+                });
+            }
+
+            return Ok(new AiAutoMarkQuestionResultDto
+            {
+                Question = resultItem,
+                TotalWrittenScore = recalculatedWritten,
+                Message = $"AI Examiner marked Question #{dto.QuestionId}: {resultItem.AwardedMarks}/{resultItem.MaxMarks} marks awarded and saved to scorecard."
+            });
+        }
+
         [HttpPost("score")]
         public async Task<IActionResult> SaveScore([FromBody] SubmitNarrativeScoreDto dto)
         {
@@ -421,13 +638,19 @@ namespace PromotionExam.WebApi.Controllers
             if (reg == null)
                 return NotFound(new { message = "Examinee registration not found." });
 
-            var (isFinalized, approverFlow, approverUser, _) = await CheckIsMarkingFinalizedAsync(reg);
+            var lockState = await GetMarkingLockStateAsync(reg);
 
-            // Rule: After complete 'Final Approver' marking, no other Examiner can change/submit marking!
-            if (isFinalized && examinerId != approverFlow?.ExaminerId)
+            // Rule: Examiner/AI Examiner Marking → Final Approver Marking → Question Locked.
+            // Once the Final Approver has marked a question (at any time), that question is finalized
+            // and locked — no other examiner (manual) or the AI Examiner can mark/rescore it afterward.
+            bool isCurrentExaminerApprover = lockState.ApproverFlow != null && examinerId == lockState.ApproverFlow.ExaminerId;
+
+            if (!isCurrentExaminerApprover && lockState.LockedQuestionIds.Contains(dto.QuestionId))
             {
-                return BadRequest(new { 
-                    message = $"Marking for this candidate has been finalized by the Final Approver ({approverUser?.Name ?? "Final Approver"}). Further changes or submissions by examiners are locked." 
+                return BadRequest(new {
+                    message = lockState.IsFullyFinalized
+                        ? $"Marking for this candidate has been finalized by the Final Approver ({lockState.ApproverUser?.Name ?? "Final Approver"}). Further changes or submissions by examiners are locked."
+                        : $"Question #{dto.QuestionId} has already been marked by the Final Approver ({lockState.ApproverUser?.Name ?? "Final Approver"}). This question is locked — no examiner or the AI Examiner can mark or rescore it anymore."
                 });
             }
 
@@ -496,22 +719,39 @@ namespace PromotionExam.WebApi.Controllers
             if (reg == null)
                 return NotFound(new { message = "Examinee registration not found." });
 
-            var (isFinalized, approverFlow, approverUser, _) = await CheckIsMarkingFinalizedAsync(reg);
+            var lockState = await GetMarkingLockStateAsync(reg);
 
-            // Rule: After complete 'Final Approver' marking, no other Examiner can change/submit marking!
-            if (isFinalized && examinerId != approverFlow?.ExaminerId)
+            // Rule: Examiner/AI Examiner Marking → Final Approver Marking → Question Locked.
+            // Questions already marked by the Final Approver are finalized & locked and must be skipped.
+            bool isCurrentExaminerApprover = lockState.ApproverFlow != null && examinerId == lockState.ApproverFlow.ExaminerId;
+
+            var lockedRequestedQuestionIds = isCurrentExaminerApprover
+                ? new List<int>()
+                : dto.Scores
+                    .Where(s => lockState.LockedQuestionIds.Contains(s.QuestionId))
+                    .Select(s => s.QuestionId)
+                    .Distinct()
+                    .ToList();
+
+            var scoresToSave = isCurrentExaminerApprover
+                ? dto.Scores.ToList()
+                : dto.Scores.Where(s => !lockState.LockedQuestionIds.Contains(s.QuestionId)).ToList();
+
+            if (scoresToSave.Count == 0)
             {
-                return BadRequest(new { 
-                    message = $"Marking for this candidate has been finalized by the Final Approver ({approverUser?.Name ?? "Final Approver"}). Further changes or submissions by examiners are locked." 
+                return BadRequest(new {
+                    message = lockState.IsFullyFinalized
+                        ? $"Marking for this candidate has been finalized by the Final Approver ({lockState.ApproverUser?.Name ?? "Final Approver"}). Further changes or submissions by examiners are locked."
+                        : $"Question(s) {string.Join(", ", lockedRequestedQuestionIds)} have already been marked by the Final Approver ({lockState.ApproverUser?.Name ?? "Final Approver"}). These questions are locked — no examiner or the AI Examiner can mark or rescore them anymore."
                 });
             }
 
-            var questionIds = dto.Scores.Select(s => s.QuestionId).ToList();
+            var questionIds = scoresToSave.Select(s => s.QuestionId).ToList();
             var questions = await _context.QuestionBanks
                 .Where(q => questionIds.Contains(q.QuestionId))
                 .ToDictionaryAsync(q => q.QuestionId, q => q.Marks);
 
-            foreach (var item in dto.Scores)
+            foreach (var item in scoresToSave)
             {
                 if (questions.ContainsKey(item.QuestionId) && item.Marks > questions[item.QuestionId])
                 {
@@ -523,7 +763,7 @@ namespace PromotionExam.WebApi.Controllers
                 .Where(s => s.ExamineeId == dto.ExamineeId && s.ExaminerId == examinerId)
                 .ToListAsync();
 
-            foreach (var item in dto.Scores)
+            foreach (var item in scoresToSave)
             {
                 var existing = existingScores.FirstOrDefault(s => s.QuestionId == item.QuestionId);
                 if (existing != null)
@@ -559,10 +799,18 @@ namespace PromotionExam.WebApi.Controllers
                 "Admin",
                 "GRADING",
                 "GRADE_NARRATIVE_ALL",
-                $"Examiner '{examiner?.Name}' saved all {dto.Scores.Count} narrative scores for Examinee #{dto.ExamineeId}.",
+                $"Examiner '{examiner?.Name}' saved {scoresToSave.Count} narrative scores for Examinee #{dto.ExamineeId}.",
                 ip);
 
-            return Ok(new { message = $"All {dto.Scores.Count} scores saved successfully!", totalWrittenScore = totalWritten });
+            var lockedNote = lockedRequestedQuestionIds.Any()
+                ? $" {lockedRequestedQuestionIds.Count} locked question(s) ({string.Join(", ", lockedRequestedQuestionIds)}) were skipped — already marked by the Final Approver."
+                : "";
+
+            return Ok(new {
+                message = $"{scoresToSave.Count} score(s) saved successfully!{lockedNote}",
+                totalWrittenScore = totalWritten,
+                skippedLockedQuestionIds = lockedRequestedQuestionIds
+            });
         }
 
         private async Task<decimal> RecalculateExamineeWrittenScoreAsync(int examineeId, long examinerId)

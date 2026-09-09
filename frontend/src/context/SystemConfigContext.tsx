@@ -41,11 +41,6 @@ export const SystemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const applyBranding = (cfg: SystemConfig | null) => {
     if (!cfg) return;
 
-    // Dynamically update document title
-    if (cfg.companyName) {
-      document.title = `${cfg.companyName} |`;
-    }
-
     // Dynamically update favicon if logo exists
     if (cfg.logoUrl) {
       let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");

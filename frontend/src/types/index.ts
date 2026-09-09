@@ -414,3 +414,10 @@ export interface RubricViewerResponse {
   questions: RubricViewerQuestion[];
 }
 
+export type AiMarkingStatus = 'Pending' | 'Processing' | 'Completed' | 'Failed';
+
+export interface AiAutoMarkQuestionResult {
+  question: QuestionAutoMarkItem;
+  totalWrittenScore?: number;
+  message: string;
+}

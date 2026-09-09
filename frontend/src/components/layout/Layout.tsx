@@ -2,8 +2,12 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export const Layout: React.FC = () => {
+  // Automatically updates browser tab title on every route change
+  usePageTitle();
+
   return (
     <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
       <Navbar />

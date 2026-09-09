@@ -287,11 +287,23 @@ namespace PromotionExam.Infrastructure.Services
                 };
             }
 
+            // Rule: Examiner/AI Examiner Marking → Final Approver Marking → Question Locked.
+            // Any question already marked by the Final Approver is locked — the AI Examiner must skip it
+            // entirely (no AI evaluation, no score application) after the Final Approver finalized it.
+            bool scoringExaminerIsApprover = approverFlow != null && examinerId == approverFlow.ExaminerId;
+            var approverScoredQuestionIds = approverFlow != null
+                ? (await _context.ExamNarrativeScores
+                    .Where(s => s.ExamineeId == examineeId && s.ExaminerId == approverFlow.ExaminerId)
+                    .Select(s => s.QuestionId)
+                    .ToListAsync()).ToHashSet()
+                : new HashSet<int>();
+
             var results = new List<QuestionAutoMarkItemDto>();
             decimal totalAwardedMarks = 0;
             decimal totalMaxMarks = candidateQuestions.Sum(q => q.Marks);
             int evaluatedCount = 0;
             int skippedCount = 0;
+            int lockedCount = 0;
 
             var existingScores = await _context.ExamNarrativeScores
                 .Where(s => s.ExamineeId == examineeId && s.ExaminerId == examinerId)
@@ -299,6 +311,23 @@ namespace PromotionExam.Infrastructure.Services
 
             foreach (var q in candidateQuestions)
             {
+                // Skip questions already finalized & locked by the Final Approver
+                if (!scoringExaminerIsApprover && approverScoredQuestionIds.Contains(q.QuestionId))
+                {
+                    skippedCount++;
+                    lockedCount++;
+                    results.Add(new QuestionAutoMarkItemDto
+                    {
+                        QuestionId = q.QuestionId,
+                        Question = q.Question,
+                        MaxMarks = q.Marks,
+                        AwardedMarks = 0,
+                        Status = "Locked",
+                        Remarks = "Already marked by the Final Approver — question is locked and cannot be marked or rescored by the AI Examiner."
+                    });
+                    continue;
+                }
+
                 try
                 {
                     var evaluation = await EvaluateAnswerAsync(examineeId, q.QuestionId, forceReevaluate, examinerId);
@@ -387,9 +416,12 @@ namespace PromotionExam.Infrastructure.Services
                 ScoresApplied = autoApplyScores && evaluatedCount > 0,
                 TotalWrittenScore = recalculatedWritten,
                 Questions = results,
-                Message = autoApplyScores
+                Message = (autoApplyScores
                     ? $"Auto-marked {evaluatedCount} questions using Google Gemini. Awarded {totalAwardedMarks:F2} / {totalMaxMarks:F2} marks and updated candidate scorecard."
-                    : $"Evaluated {evaluatedCount} questions using Google Gemini without applying scores directly."
+                    : $"Evaluated {evaluatedCount} questions using Google Gemini without applying scores directly.")
+                    + (lockedCount > 0
+                        ? $" {lockedCount} question(s) skipped — already marked and locked by the Final Approver."
+                        : string.Empty)
             };
         }
 
