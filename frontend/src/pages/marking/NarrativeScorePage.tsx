@@ -16,8 +16,7 @@ import {
   EyeOff,
   Save,
   Users,
-  ChevronDown,
-  ChevronUp,
+  BookOpen,
   Copy,
   Sparkles,
   Award,
@@ -36,6 +35,9 @@ import {
   AiAutoMarkQuestionResult
 } from '@/types';
 
+// Per-question information tab identifiers for the grading detail tabs
+type QuestionInfoTab = 'answer' | 'model' | 'ai' | 'previous';
+
 export const NarrativeScorePage: React.FC = () => {
   const { user } = useAuth();
   const [batches, setBatches] = useState<ExamBatch[]>([]);
@@ -51,8 +53,8 @@ export const NarrativeScorePage: React.FC = () => {
 
   // Global option: Preview previous examiner markings
   const [previewExaminersMode, setPreviewExaminersMode] = useState<boolean>(true);
-  // Per-question toggle map for individual preview sections
-  const [expandedPreviews, setExpandedPreviews] = useState<Record<number, boolean>>({});
+  // Per-question information tabs: which detail section is currently visible per question
+  const [questionTabs, setQuestionTabs] = useState<Record<number, QuestionInfoTab>>({});
 
   // Scoring inputs — marks: '' means "not evaluated yet". The My Evaluation form
   // starts blank on candidate load and is filled via Adopt Score / AI Suggest / Adopt All.
@@ -168,13 +170,13 @@ export const NarrativeScorePage: React.FC = () => {
       // Previously saved marks stay visible in the "Previous Examiner Scores"
       // preview panel, so nothing is lost by keeping this form empty.
       const initialScores: Record<number, { marks: number | ''; remarks: string }> = {};
-      const initialExpanded: Record<number, boolean> = {};
+      const initialTabs: Record<number, QuestionInfoTab> = {};
       res.data.forEach((q: CandidateNarrativeQuestion) => {
         initialScores[q.questionId] = { marks: '', remarks: '' };
-        initialExpanded[q.questionId] = true;
+        initialTabs[q.questionId] = 'answer';
       });
       setScores(initialScores);
-      setExpandedPreviews(initialExpanded);
+      setQuestionTabs(initialTabs);
       setAiEvaluations(Object.fromEntries(
         res.data.map((q: CandidateNarrativeQuestion) => [q.questionId, q.aiEvaluation || null])
       ));
@@ -208,11 +210,17 @@ export const NarrativeScorePage: React.FC = () => {
     }));
   };
 
-  const toggleQuestionPreview = (questionId: number) => {
-    setExpandedPreviews(prev => ({
-      ...prev,
-      [questionId]: !prev[questionId]
-    }));
+  // Active information tab for a question — defaults to the candidate's answer.
+  // Blind-marking safeguard: the Previous Examiner Marking tab is inaccessible
+  // while the global "Preview Examiner Marking" mode is switched off.
+  const getActiveQuestionTab = (questionId: number): QuestionInfoTab => {
+    const tab = questionTabs[questionId] || 'answer';
+    if (tab === 'previous' && !previewExaminersMode) return 'answer';
+    return tab;
+  };
+
+  const setQuestionTab = (questionId: number, tab: QuestionInfoTab) => {
+    setQuestionTabs(prev => ({ ...prev, [questionId]: tab }));
   };
 
   // Adopt / Copy marks & remarks from previous examiner into the form ONLY.
@@ -969,7 +977,7 @@ export const NarrativeScorePage: React.FC = () => {
                 </Card>
               ) : (
                 questions.map((q, qIdx) => {
-                  const isPreviewOpen = previewExaminersMode && (expandedPreviews[q.questionId] ?? true);
+                  const activeInfoTab = getActiveQuestionTab(q.questionId);
                   const canEditThisQuestion = q.canEdit ?? true;
 
                   return (
@@ -1035,32 +1043,99 @@ export const NarrativeScorePage: React.FC = () => {
                       <CardContent className="p-6 space-y-4">
                         {/* Question Prompt */}
                         <div>
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Question Prompt</span>
-                          <div className="text-sm font-semibold text-slate-900 mt-1 whitespace-pre-wrap">{q.question}</div>
+                          <div className="text-sm font-semibold text-slate-900 whitespace-pre-wrap">{q.question}</div>
                         </div>
 
-                        {/* Candidate's Answer */}
-                        <div className="rounded-lg bg-blue-50/50 border border-blue-200 p-4 space-y-1">
-                          <span className="text-xs font-bold uppercase tracking-wider text-blue-700 flex items-center">
-                            <FileText className="h-3.5 w-3.5 mr-1" /> Candidate Submitted Answer
-                          </span>
-                          <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                            {q.candidateAnswer || '(Candidate did not provide a written response)'}
-                          </p>
+                        {/* Per-Question Detail Tabs */}
+                        <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={activeInfoTab === 'answer' ? 'default' : 'outline'}
+                            onClick={() => setQuestionTab(q.questionId, 'answer')}
+                            className={`text-xs h-8 ${
+                              activeInfoTab === 'answer'
+                                ? 'bg-blue-700 hover:bg-blue-800 text-white'
+                                : 'text-blue-700 border-blue-200 hover:bg-blue-50'
+                            }`}
+                          >
+                            <FileText className="h-3.5 w-3.5" />&nbsp; Candidate Submitted Answer
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={activeInfoTab === 'model' ? 'default' : 'outline'}
+                            onClick={() => setQuestionTab(q.questionId, 'model')}
+                            className={`text-xs h-8 ${
+                              activeInfoTab === 'model'
+                                ? 'bg-amber-700 hover:bg-amber-800 text-white'
+                                : 'text-amber-800 border-amber-200 hover:bg-amber-50'
+                            }`}
+                          >
+                            <BookOpen className="h-3.5 w-3.5" />&nbsp; Model Solution / Scoring Criteria
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={activeInfoTab === 'ai' ? 'default' : 'outline'}
+                            onClick={() => setQuestionTab(q.questionId, 'ai')}
+                            className={`text-xs h-8 ${
+                              activeInfoTab === 'ai'
+                                ? 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                                : 'text-emerald-800 border-emerald-200 hover:bg-emerald-50'
+                            }`}
+                          >
+                            <Sparkles className="h-3.5 w-3.5" />&nbsp; AI Marking Assistant
+                          </Button>
+                          {previewExaminersMode && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={activeInfoTab === 'previous' ? 'default' : 'outline'}
+                              onClick={() => setQuestionTab(q.questionId, 'previous')}
+                              className={`text-xs h-8 ${
+                                activeInfoTab === 'previous'
+                                  ? 'bg-purple-700 hover:bg-purple-800 text-white'
+                                  : 'text-purple-700 border-purple-200 hover:bg-purple-50'
+                              }`}
+                            >
+                              <Users className="h-3.5 w-3.5" />&nbsp; Previous Examiner Marking & Feedback ({q.examinerScores?.length || 0})
+                            </Button>
+                          )}
                         </div>
 
-                        {/* Model Answer (Guide) */}
-                        {q.modelAnswer && (
-                          <div className="rounded-lg bg-amber-50/50 border border-amber-200 p-4 space-y-1">
-                            <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                              Examiner Model Solution / Scoring Criteria
+                        {/* Tab Content: Candidate Submitted Answer */}
+                        {activeInfoTab === 'answer' && (
+                          <div className="rounded-lg bg-blue-50/50 border border-blue-200 p-4 space-y-1">
+                            <span className="text-xs font-bold uppercase tracking-wider text-blue-700 flex items-center">
+                              <FileText className="h-3.5 w-3.5 mr-1" /> Candidate Submitted Answer
                             </span>
-                            <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
-                              {q.modelAnswer}
+                            <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                              {q.candidateAnswer || '(Candidate did not provide a written response)'}
                             </p>
                           </div>
                         )}
 
+                        {/* Tab Content: Examiner Model Solution / Scoring Criteria */}
+                        {activeInfoTab === 'model' && (
+                          <div className="rounded-lg bg-amber-50/50 border border-amber-200 p-4 space-y-1">
+                            <span className="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center">
+                              <BookOpen className="h-3.5 w-3.5 mr-1" /> Examiner Model Solution / Scoring Criteria
+                            </span>
+                            {q.modelAnswer ? (
+                              <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                {q.modelAnswer}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-slate-500 italic">
+                                No model solution or scoring criteria has been provided for this question.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Tab Content: AI Marking Assistant */}
+                        {activeInfoTab === 'ai' && (
                         <div className={`rounded-lg border p-4 space-y-3 ${
                           q.aiRubricStatus === 'Ready'
                             ? 'bg-emerald-50/40 border-emerald-200'
@@ -1288,29 +1363,21 @@ export const NarrativeScorePage: React.FC = () => {
                             </div>
                           )}
                         </div>
+                        )}
 
-                        {/* Previous Examiner Marking Preview Panel */}
-                        {previewExaminersMode && (
+                        {/* Tab Content: Previous Examiner Marking & Feedback */}
+                        {activeInfoTab === 'previous' && previewExaminersMode && (
                           <div className="rounded-lg bg-purple-50/60 border border-purple-200 p-4 space-y-3">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center">
                               <div className="flex items-center space-x-2">
                                 <Users className="h-4 w-4 text-purple-700" />
                                 <span className="text-xs font-bold uppercase tracking-wider text-purple-900">
                                   Previous Examiner Marking & Feedback ({q.examinerScores?.length || 0})
                                 </span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => toggleQuestionPreview(q.questionId)}
-                                className="text-xs text-purple-700 hover:text-purple-900 flex items-center space-x-1 font-medium"
-                              >
-                                <span>{isPreviewOpen ? 'Collapse' : 'Expand'}</span>
-                                {isPreviewOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                              </button>
                             </div>
 
-                            {isPreviewOpen && (
-                              <div className="space-y-3 pt-1">
+                            <div className="space-y-3 pt-1">
                                 {(!q.examinerScores || q.examinerScores.length === 0) ? (
                                   <div className="text-xs text-purple-600 italic py-2">
                                     No other examiner has graded this question yet. You are the first evaluator.
@@ -1380,7 +1447,6 @@ export const NarrativeScorePage: React.FC = () => {
                                   </div>
                                 )}
                               </div>
-                            )}
                           </div>
                         )}
 
