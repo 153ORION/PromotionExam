@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PromotionExam.Application.Common.Interfaces;
 
 namespace PromotionExam.WebApi.Controllers
 {
+    [AllowAnonymous]
     [ApiController]
     [Route("api/[controller]/[action]")]
     public class MessageController : ControllerBase

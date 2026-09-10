@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import api from '@/services/api';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
@@ -7,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Filter, Edit, FileText, Sparkles, RefreshCcw, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Filter, Edit, FileText, Sparkles, AlertTriangle } from 'lucide-react';
 import { Question, QuestionSet } from '@/types';
 
 export const QuestionNarrativePage: React.FC = () => {
@@ -24,7 +23,6 @@ export const QuestionNarrativePage: React.FC = () => {
   const [narrativeAnswer, setNarrativeAnswer] = useState('');
   const [marks, setMarks] = useState<number>(10.0);
   const [submitting, setSubmitting] = useState(false);
-  const [rubricBusyQuestionId, setRubricBusyQuestionId] = useState<number | null>(null);
   const [draftingAnswer, setDraftingAnswer] = useState(false);
 
   const fetchSets = async () => {
@@ -120,21 +118,6 @@ export const QuestionNarrativePage: React.FC = () => {
     }
   };
 
-  const handleGenerateRubric = async (question: Question, forceRegenerate = false) => {
-    setRubricBusyQuestionId(question.questionId);
-    try {
-      const res = await api.post(`/questions/${question.questionId}/ai-rubric/generate`, null, {
-        params: { forceRegenerate }
-      });
-      alert(`${res.data.message} Rubric version: ${res.data.rubric?.versionNo ?? '-'}`);
-      fetchQuestions();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to generate AI rubric.');
-    } finally {
-      setRubricBusyQuestionId(null);
-    }
-  };
-
   const handleDraftStandardAnswer = async () => {
     if (!editingQuestion?.questionId) {
       alert('Please save the question first before drafting a standard answer with Gemini.');
@@ -184,12 +167,6 @@ export const QuestionNarrativePage: React.FC = () => {
           <p className="text-sm text-slate-500">Create open-ended descriptive questions and reference model answers for examiner evaluation.</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Link to="/question-bank/generate-rubrics">
-            <Button variant="outline" className="border-emerald-300 text-emerald-800 hover:bg-emerald-50 flex items-center space-x-1">
-              <Sparkles className="h-4 w-4 text-emerald-600" />
-              <span>Generate Rubrics</span>
-            </Button>
-          </Link>
           <Button onClick={handleOpenAdd} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1">
             <Plus className="h-4 w-4" />
             <span>Add Narrative Question</span>
@@ -249,24 +226,6 @@ export const QuestionNarrativePage: React.FC = () => {
                   {renderRubricBadge(q)}
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleGenerateRubric(q, q.aiRubricStatus === 'Outdated')}
-                    disabled={rubricBusyQuestionId === q.questionId}
-                    className="border-emerald-300 text-emerald-800 hover:bg-emerald-50"
-                  >
-                    {q.aiRubricStatus === 'Outdated' ? (
-                      <RefreshCcw className="h-3.5 w-3.5 mr-1" />
-                    ) : (
-                      <Sparkles className="h-3.5 w-3.5 mr-1" />
-                    )}
-                    {rubricBusyQuestionId === q.questionId
-                      ? 'Processing...'
-                      : q.aiRubricStatus === 'Outdated'
-                        ? 'Regenerate Rubric'
-                        : 'Generate Rubric'}
-                  </Button>
                   <Button size="sm" variant="outline" onClick={() => handleOpenEdit(q)}>
                     <Edit className="h-3.5 w-3.5 mr-1" /> Edit
                   </Button>

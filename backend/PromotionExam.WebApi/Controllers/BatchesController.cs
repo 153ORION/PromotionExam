@@ -98,11 +98,19 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(dto);
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost]
         public async Task<IActionResult> SaveBatch([FromBody] ExamBatchCreateUpdateDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.ExamName))
                 return BadRequest(new { message = "Exam Name is required." });
+
+            // Computed written marks distribution:
+            // Total Written Questions = MaxAcademic + MaxGeneral + MaxJobRelated
+            // Total Written Marks = Total Written Questions * 10
+            var totalWrittenQuestions = (dto.MaxAcademic ?? 0) + (dto.MaxGeneral ?? 0) + (dto.MaxJobRelated ?? 0);
+            var writtenMark = totalWrittenQuestions * 10;
+            var totalMark = (dto.MCQMark ?? 0) + writtenMark;
 
             if (dto.BatchId.HasValue && dto.BatchId.Value > 0)
             {
@@ -123,9 +131,9 @@ namespace PromotionExam.WebApi.Controllers
                 existing.MaxGeneral = dto.MaxGeneral;
                 existing.JobRelatedQuestion = dto.JobRelatedQuestion;
                 existing.MaxJobRelated = dto.MaxJobRelated;
-                existing.TotalWrittenQuestion = dto.TotalWrittenQuestion;
-                existing.WrittenMark = dto.WrittenMark;
-                existing.TotalMark = (dto.MCQMark ?? 0) + (dto.WrittenMark ?? 0);
+                existing.TotalWrittenQuestion = totalWrittenQuestions;
+                existing.WrittenMark = writtenMark;
+                existing.TotalMark = totalMark;
                 existing.ExamDuration = dto.ExamDuration;
                 existing.IsMultipleExaminer = dto.IsMultipleExaminer ?? true;
                 existing.AllowPreviewMarking = dto.AllowPreviewMarking ?? true;
@@ -147,9 +155,9 @@ namespace PromotionExam.WebApi.Controllers
                     MaxGeneral = dto.MaxGeneral,
                     JobRelatedQuestion = dto.JobRelatedQuestion,
                     MaxJobRelated = dto.MaxJobRelated,
-                    TotalWrittenQuestion = dto.TotalWrittenQuestion,
-                    WrittenMark = dto.WrittenMark,
-                    TotalMark = (dto.MCQMark ?? 0) + (dto.WrittenMark ?? 0),
+                    TotalWrittenQuestion = totalWrittenQuestions,
+                    WrittenMark = writtenMark,
+                    TotalMark = totalMark,
                     ExamDuration = dto.ExamDuration,
                     IsActive = true,
                     IsMultipleExaminer = dto.IsMultipleExaminer ?? true,
@@ -162,6 +170,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(new { message = "Exam Batch saved successfully." });
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("toggle/{id}")]
         public async Task<IActionResult> ToggleBatchStatus(int id)
         {
@@ -175,6 +184,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(new { message = "Status changed successfully.", isActive = batch.IsActive });
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("time-editor")]
         public async Task<IActionResult> ExtendTime([FromBody] TimeEditorRequestDto request)
         {

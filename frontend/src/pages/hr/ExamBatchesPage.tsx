@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Plus, CheckCircle, XCircle, Clock, Calendar, FileText } from 'lucide-react';
-import { ExamBatch } from '@/types';
+import { Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { ExamBatch, LookupItem } from '@/types';
 
 export const ExamBatchesPage: React.FC = () => {
   const [batches, setBatches] = useState<ExamBatch[]>([]);
@@ -16,14 +17,19 @@ export const ExamBatchesPage: React.FC = () => {
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState<ExamBatch | null>(null);
+  const [examYears, setExamYears] = useState<LookupItem[]>([]);
   const [examName, setExamName] = useState('');
   const [examYear, setExamYear] = useState<number>(new Date().getFullYear());
   const [examStart, setExamStart] = useState('');
   const [examEnd, setExamEnd] = useState('');
   const [mcqQuestion, setMcqQuestion] = useState<number>(20);
   const [mcqMark, setMcqMark] = useState<number>(20);
-  const [totalWrittenQuestion, setTotalWrittenQuestion] = useState<number>(2);
-  const [writtenMark, setWrittenMark] = useState<number>(20);
+  const [academicQuestion, setAcademicQuestion] = useState<number>(0);
+  const [maxAcademic, setMaxAcademic] = useState<number>(0);
+  const [generalQuestion, setGeneralQuestion] = useState<number>(0);
+  const [maxGeneral, setMaxGeneral] = useState<number>(0);
+  const [jobRelatedQuestion, setJobRelatedQuestion] = useState<number>(0);
+  const [maxJobRelated, setMaxJobRelated] = useState<number>(0);
   const [examDuration, setExamDuration] = useState<number>(60);
   const [isMultipleExaminer, setIsMultipleExaminer] = useState<boolean>(true);
   const [allowPreviewMarking, setAllowPreviewMarking] = useState<boolean>(true);
@@ -43,20 +49,77 @@ export const ExamBatchesPage: React.FC = () => {
 
   useEffect(() => {
     fetchBatches();
+    // Exam Year options come from lookup table (typeid = 1)
+    api.get('/lookups/items', { params: { typeId: 1 } })
+      .then((res) => {
+        const items: LookupItem[] = res.data;
+        setExamYears(items);
+        if (items.length > 0 && !items.some((y) => Number(y.lookupText) === new Date().getFullYear())) {
+          setExamYear(Number(items[0].lookupText) || items[0].lookupId);
+        }
+      })
+      .catch((err) => console.error(err));
   }, []);
+
+  // Computed written distribution:
+  // Total Written Questions = MaxAcademic + MaxGeneral + MaxJobRelated
+  // Total Written Marks = Total Written Questions * 10
+  const computedTotalWrittenQuestion =
+    (Number(maxAcademic) || 0) + (Number(maxGeneral) || 0) + (Number(maxJobRelated) || 0);
+  const computedWrittenMark = computedTotalWrittenQuestion * 10;
+  const computedTotalMark = (Number(mcqMark) || 0) + computedWrittenMark;
+
+  const examYearOptions = examYears.map((y) => ({
+    id: Number(y.lookupText) || y.lookupId,
+    title: y.lookupText,
+  }));
+
+  // Auto-calculated: End Date & Time = (Start Date & Time) + Duration (Minutes)
+  const toLocalDateTimeInput = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const recalcExamEnd = (start: string, duration: number) => {
+    if (!start) return '';
+    const startDate = new Date(start);
+    if (isNaN(startDate.getTime())) return '';
+    return toLocalDateTimeInput(new Date(startDate.getTime() + (Number(duration) || 0) * 60000));
+  };
+
+  const handleExamStartChange = (value: string) => {
+    setExamStart(value);
+    setExamEnd(recalcExamEnd(value, examDuration));
+  };
+
+  const handleExamDurationChange = (value: number) => {
+    setExamDuration(value);
+    setExamEnd(recalcExamEnd(examStart, value));
+  };
 
   const handleOpenAdd = () => {
     setEditingBatch(null);
     setExamName('');
-    setExamYear(new Date().getFullYear());
-    setExamStart(new Date().toISOString().slice(0, 16));
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    setExamEnd(nextWeek.toISOString().slice(0, 16));
+    const currentYear = new Date().getFullYear();
+    const yearExists = examYears.some((y) => Number(y.lookupText) === currentYear);
+    setExamYear(
+      yearExists
+        ? currentYear
+        : examYears.length > 0
+        ? Number(examYears[0].lookupText) || examYears[0].lookupId
+        : currentYear
+    );
+    const startValue = toLocalDateTimeInput(new Date());
+    setExamStart(startValue);
+    setExamEnd(recalcExamEnd(startValue, 60));
     setMcqQuestion(20);
     setMcqMark(20);
-    setTotalWrittenQuestion(2);
-    setWrittenMark(20);
+    setAcademicQuestion(0);
+    setMaxAcademic(0);
+    setGeneralQuestion(0);
+    setMaxGeneral(0);
+    setJobRelatedQuestion(0);
+    setMaxJobRelated(0);
     setExamDuration(60);
     setIsMultipleExaminer(true);
     setAllowPreviewMarking(true);
@@ -67,13 +130,19 @@ export const ExamBatchesPage: React.FC = () => {
     setEditingBatch(b);
     setExamName(b.examName);
     setExamYear(b.examYear);
-    setExamStart(b.examStart ? b.examStart.slice(0, 16) : '');
-    setExamEnd(b.examEnd ? b.examEnd.slice(0, 16) : '');
+    const startValue = b.examStart ? b.examStart.slice(0, 16) : '';
+    const durationValue = b.examDuration || 60;
+    setExamStart(startValue);
+    setExamEnd(recalcExamEnd(startValue, durationValue));
     setMcqQuestion(b.mcqQuestion || 20);
     setMcqMark(b.mcqMark || 20);
-    setTotalWrittenQuestion(b.totalWrittenQuestion || 2);
-    setWrittenMark(b.writtenMark || 20);
-    setExamDuration(b.examDuration || 60);
+    setAcademicQuestion(b.academicQuestion ?? 0);
+    setMaxAcademic(b.maxAcademic ?? 0);
+    setGeneralQuestion(b.generalQuestion ?? 0);
+    setMaxGeneral(b.maxGeneral ?? 0);
+    setJobRelatedQuestion(b.jobRelatedQuestion ?? 0);
+    setMaxJobRelated(b.maxJobRelated ?? 0);
+    setExamDuration(durationValue);
     setIsMultipleExaminer(b.isMultipleExaminer ?? true);
     setAllowPreviewMarking(b.allowPreviewMarking ?? true);
     setDialogOpen(true);
@@ -94,9 +163,15 @@ export const ExamBatchesPage: React.FC = () => {
         mcqQuestion: Number(mcqQuestion),
         maxMCQ: Number(mcqQuestion),
         mcqMark: Number(mcqMark),
-        totalWrittenQuestion: Number(totalWrittenQuestion),
-        writtenMark: Number(writtenMark),
-        totalMark: Number(mcqMark) + Number(writtenMark),
+        academicQuestion: Number(academicQuestion),
+        maxAcademic: Number(maxAcademic),
+        generalQuestion: Number(generalQuestion),
+        maxGeneral: Number(maxGeneral),
+        jobRelatedQuestion: Number(jobRelatedQuestion),
+        maxJobRelated: Number(maxJobRelated),
+        totalWrittenQuestion: computedTotalWrittenQuestion,
+        writtenMark: computedWrittenMark,
+        totalMark: computedTotalMark,
         examDuration: Number(examDuration),
         isMultipleExaminer,
         allowPreviewMarking
@@ -142,9 +217,13 @@ export const ExamBatchesPage: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-16">ID</TableHead>
-                <TableHead>Batch Name & Year</TableHead>
+                <TableHead>Batch Name</TableHead>
+                <TableHead className="text-center">Year</TableHead>
                 <TableHead>Start / End Window</TableHead>
                 <TableHead className="text-center">Duration</TableHead>
+                <TableHead className="text-center" title="Max / Available">Academic</TableHead>
+                <TableHead className="text-center" title="Max / Available">General</TableHead>
+                <TableHead className="text-center" title="Max / Available">Job Related</TableHead>
                 <TableHead className="text-center">MCQ Marks</TableHead>
                 <TableHead className="text-center">Written Marks</TableHead>
                 <TableHead className="text-center">Total Marks</TableHead>
@@ -155,13 +234,13 @@ export const ExamBatchesPage: React.FC = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-slate-500">
+                  <TableCell colSpan={13} className="text-center py-8 text-slate-500">
                     Loading batches...
                   </TableCell>
                 </TableRow>
               ) : batches.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-slate-500">
+                  <TableCell colSpan={13} className="text-center py-8 text-slate-500">
                     No exam batches configured yet.
                   </TableCell>
                 </TableRow>
@@ -171,14 +250,18 @@ export const ExamBatchesPage: React.FC = () => {
                     <TableCell className="font-mono text-xs text-slate-500">#{b.batchId}</TableCell>
                     <TableCell>
                       <div className="font-semibold text-slate-900">{b.examName}</div>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <span className="text-xs text-blue-600 font-bold">Year: {b.examYear}</span>
-                        {b.isMultipleExaminer && (
+                      {b.isMultipleExaminer && (
+                        <div className="mt-1">
                           <span className="text-[10px] bg-purple-100 text-purple-700 font-medium px-1.5 py-0.5 rounded border border-purple-200">
                             Multi-Examiner
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                        {b.examYear}
+                      </span>
                     </TableCell>
                     <TableCell className="text-xs text-slate-600 space-y-0.5">
                       <div>Start: {b.examStart ? new Date(b.examStart).toLocaleDateString() : '-'}</div>
@@ -189,6 +272,21 @@ export const ExamBatchesPage: React.FC = () => {
                         <Clock className="h-3 w-3 mr-1 text-slate-500" />
                         {b.examDuration} mins
                       </span>
+                    </TableCell>
+                    <TableCell className="text-center font-mono text-xs font-bold">
+                      <span className="text-[15px] text-emerald-600">{b.maxAcademic ?? 0}</span>
+                      <span className="text-slate-400">/</span>
+                      <span className="text-blue-600">{b.academicQuestion ?? 0}</span>
+                    </TableCell>
+                    <TableCell className="text-center font-mono text-xs font-bold">
+                      <span className="text-[15px] text-emerald-600">{b.maxGeneral ?? 0}</span>
+                      <span className="text-slate-400">/</span>
+                      <span className="text-blue-600">{b.generalQuestion ?? 0}</span>
+                    </TableCell>
+                    <TableCell className="text-center font-mono text-xs font-bold">
+                      <span className="text-[15px] text-emerald-600">{b.maxJobRelated ?? 0}</span>
+                      <span className="text-slate-400">/</span>
+                      <span className="text-blue-600">{b.jobRelatedQuestion ?? 0}</span>
                     </TableCell>
                     <TableCell className="text-center font-semibold text-slate-800">
                       {b.mcqMark || 0}
@@ -233,7 +331,7 @@ export const ExamBatchesPage: React.FC = () => {
       </Card>
 
       {/* Modal Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen} className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{editingBatch ? 'Edit Exam Batch' : 'Create New Exam Batch'}</DialogTitle>
           <DialogDescription>
@@ -255,10 +353,12 @@ export const ExamBatchesPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Exam Year</label>
-              <Input
-                type="number"
-                value={examYear}
-                onChange={(e) => setExamYear(Number(e.target.value))}
+              <SearchableSelect
+                options={examYearOptions}
+                selectedId={examYear}
+                onSelect={(opt) => setExamYear(opt ? Number(opt.id) : new Date().getFullYear())}
+                placeholder="Select exam year..."
+                searchPlaceholder="Search year..."
                 required
               />
             </div>
@@ -267,7 +367,7 @@ export const ExamBatchesPage: React.FC = () => {
               <Input
                 type="number"
                 value={examDuration}
-                onChange={(e) => setExamDuration(Number(e.target.value))}
+                onChange={(e) => handleExamDurationChange(Number(e.target.value))}
                 required
               />
             </div>
@@ -279,16 +379,20 @@ export const ExamBatchesPage: React.FC = () => {
               <Input
                 type="datetime-local"
                 value={examStart}
-                onChange={(e) => setExamStart(e.target.value)}
+                onChange={(e) => handleExamStartChange(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">End Date & Time</label>
+              <label className="text-sm font-medium text-slate-700">
+                End Date & Time{' '}
+                <span className="text-xs font-normal text-slate-400">(auto: Start + Duration)</span>
+              </label>
               <Input
                 type="datetime-local"
                 value={examEnd}
-                onChange={(e) => setExamEnd(e.target.value)}
+                readOnly
+                className="bg-slate-100 text-slate-600"
                 required
               />
             </div>
@@ -315,29 +419,90 @@ export const ExamBatchesPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Total Written Questions</label>
-              <Input
-                type="number"
-                value={totalWrittenQuestion}
-                onChange={(e) => setTotalWrittenQuestion(Number(e.target.value))}
-                required
-              />
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-md space-y-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
+              Written Questions Distribution
+            </span>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">Academic Questions</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={academicQuestion}
+                    onChange={(e) => setAcademicQuestion(Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">Max Academic</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={maxAcademic}
+                    onChange={(e) => setMaxAcademic(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">General Questions</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={generalQuestion}
+                    onChange={(e) => setGeneralQuestion(Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">Max General</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={maxGeneral}
+                    onChange={(e) => setMaxGeneral(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">Job Related Questions</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={jobRelatedQuestion}
+                    onChange={(e) => setJobRelatedQuestion(Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">Max Job Related</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={maxJobRelated}
+                    onChange={(e) => setMaxJobRelated(Number(e.target.value))}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Total Written Marks</label>
-              <Input
-                type="number"
-                value={writtenMark}
-                onChange={(e) => setWrittenMark(Number(e.target.value))}
-                required
-              />
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-200">
+              <div className="p-2 bg-white border border-blue-200 rounded-md text-center">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Total Written Questions
+                </span>
+                <span className="text-base font-bold text-blue-700">{computedTotalWrittenQuestion}</span>
+              </div>
+              <div className="p-2 bg-white border border-blue-200 rounded-md text-center">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Total Written Marks (10 per question)
+                </span>
+                <span className="text-base font-bold text-blue-700">{computedWrittenMark}</span>
+              </div>
             </div>
           </div>
 
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-900 font-semibold text-center">
-            Total Combined Exam Marks: {Number(mcqMark) + Number(writtenMark)}
+            Total Combined Exam Marks: {computedTotalMark}
           </div>
 
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-md space-y-2">

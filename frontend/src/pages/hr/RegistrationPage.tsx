@@ -14,7 +14,7 @@ import {
   Filter,
   Search
 } from 'lucide-react';
-import { ExamBatch, QuestionSet, ExamRegistration } from '@/types';
+import { ExamBatch, QuestionSet, ExamRegistration, LookupItem } from '@/types';
 import { SearchableSelect, SearchableSelectOption } from '@/components/ui/SearchableSelect';
 
 export const RegistrationPage: React.FC = () => {
@@ -46,18 +46,27 @@ export const RegistrationPage: React.FC = () => {
   const [rosterSearch, setRosterSearch] = useState('');
   const [rosterSetFilter, setRosterSetFilter] = useState<number>(0);
   const [rosterBatchId, setRosterBatchId] = useState<number>(0);
+  const [rosterYearFilter, setRosterYearFilter] = useState<number>(0);
+  const [examYears, setExamYears] = useState<{ value: number; label: string }[]>([]);
 
   // On mount: load batches, grades lookup
   useEffect(() => {
     const initData = async () => {
       try {
-        const [resBatches, resLookups] = await Promise.all([
+        const [resBatches, resLookups, resYears] = await Promise.all([
           api.get('/batches'),
-          api.get('/lookups/basic')
+          api.get('/lookups/basic'),
+          api.get('/lookups/items', { params: { typeId: 1 } })
         ]);
         const activeBatches = (resBatches.data || []).filter((b: ExamBatch) => b.isActive !== false);
         setBatches(activeBatches);
         setBasicLookups(resLookups.data);
+        setExamYears(
+          ((resYears.data || []) as LookupItem[]).map((y) => ({
+            value: Number(y.lookupText) || y.lookupId,
+            label: y.lookupText
+          }))
+        );
       } catch (err) {
         console.error(err);
       }
@@ -179,8 +188,8 @@ export const RegistrationPage: React.FC = () => {
       setSets([]);
       setPromotedGradeId(undefined);
 
-      // Refresh roster if a batch is selected
-      if (rosterBatchId > 0) fetchRegistrations(rosterBatchId);
+      // Refresh roster if a batch or year filter is active
+      if (rosterBatchId > 0 || rosterYearFilter > 0) fetchRegistrations();
     } catch (err: any) {
       setSearchError(err.response?.data?.message || 'Failed to register examinee.');
     } finally {
@@ -188,17 +197,21 @@ export const RegistrationPage: React.FC = () => {
     }
   };
 
-  // Roster fetch (separate batch filter for the roster section)
-  const fetchRegistrations = async (batchId?: number) => {
-    const targetBatchId = batchId !== undefined ? batchId : rosterBatchId;
-    if (targetBatchId <= 0) {
+  // Roster fetch (filter by batch, or by year across all batches)
+  const fetchRegistrations = async (filters?: { batchId?: number; year?: number }) => {
+    const fBatchId = filters?.batchId !== undefined ? filters.batchId : rosterBatchId;
+    const fYear = filters?.year !== undefined ? filters.year : rosterYearFilter;
+    if (fBatchId <= 0 && fYear <= 0) {
       setRegistrations([]);
       return;
     }
     setLoadingRegistrations(true);
     try {
       const res = await api.get('/registrations', {
-        params: { batchId: targetBatchId },
+        params: {
+          batchId: fBatchId > 0 ? fBatchId : undefined,
+          year: fBatchId <= 0 && fYear > 0 ? fYear : undefined,
+        },
       });
       setRegistrations(res.data);
     } catch (err) {
@@ -211,7 +224,16 @@ export const RegistrationPage: React.FC = () => {
   const handleRosterBatchChange = (batchId: number) => {
     setRosterBatchId(batchId);
     setRosterSetFilter(0);
-    if (batchId > 0) fetchRegistrations(batchId);
+    if (batchId > 0) fetchRegistrations({ batchId });
+    else if (rosterYearFilter > 0) fetchRegistrations({ batchId: 0, year: rosterYearFilter });
+    else setRegistrations([]);
+  };
+
+  const handleRosterYearChange = (year: number) => {
+    setRosterYearFilter(year);
+    setRosterBatchId(0);
+    setRosterSetFilter(0);
+    if (year > 0) fetchRegistrations({ batchId: 0, year });
     else setRegistrations([]);
   };
 
@@ -238,7 +260,8 @@ export const RegistrationPage: React.FC = () => {
       (r.departmentName && r.departmentName.toLowerCase().includes(q)) ||
       (r.designation && r.designation.toLowerCase().includes(q)) ||
       (r.companyName && r.companyName.toLowerCase().includes(q)) ||
-      (r.setName && r.setName.toLowerCase().includes(q))
+      (r.setName && r.setName.toLowerCase().includes(q)) ||
+      (r.batchName && r.batchName.toLowerCase().includes(q))
     );
   });
 
@@ -306,7 +329,6 @@ export const RegistrationPage: React.FC = () => {
                 loading={searchingEmployees}
                 onSearchChange={handleEmployeeSearch}
               />
-              <p className="text-xs text-slate-500">Search by employee code (Login ID) or full name.</p>
             </div>
 
             {/* Column 2: Exam Batch */}
@@ -416,9 +438,14 @@ export const RegistrationPage: React.FC = () => {
                     {currentRosterBatch.examName} ({currentRosterBatch.examYear})
                   </Badge>
                 )}
+                {rosterBatchId <= 0 && rosterYearFilter > 0 && (
+                  <Badge variant="outline" className="ml-2 font-normal bg-emerald-50 text-emerald-700 border-emerald-200">
+                    Year: {rosterYearFilter} (All Batches)
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription className="mt-1">
-                All active candidates enrolled in the selected exam batch.
+                All active candidates enrolled in the selected exam batch, or across all batches of a selected year.
               </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
@@ -428,8 +455,8 @@ export const RegistrationPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchRegistrations(rosterBatchId)}
-                disabled={loadingRegistrations || rosterBatchId <= 0}
+                onClick={() => fetchRegistrations()}
+                disabled={loadingRegistrations || (rosterBatchId <= 0 && rosterYearFilter <= 0)}
                 title="Refresh Roster"
                 className="h-8 px-2.5 text-xs text-slate-600"
               >
@@ -441,7 +468,23 @@ export const RegistrationPage: React.FC = () => {
 
           {/* Roster Filter & Search Bar */}
           <div className="mt-4 flex flex-col sm:flex-row items-center gap-3 pt-3 border-t border-slate-200/60">
-            {/* Roster batch selector */}
+            {/* Roster year selector */}
+            <div className="flex items-center space-x-2 w-full sm:w-auto">
+              <span className="text-sm font-semibold text-slate-700 shrink-0">Year:</span>
+              <select
+                value={rosterYearFilter}
+                onChange={(e) => handleRosterYearChange(Number(e.target.value))}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm h-9 focus:outline-none focus:ring-1 focus:ring-blue-600 w-full sm:w-auto"
+              >
+                <option value={0}>-- All Years --</option>
+                {examYears.map((y) => (
+                  <option key={y.value} value={y.value}>
+                    {y.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Roster batch selector (filtered by selected year) */}
             <div className="flex items-center space-x-2 w-full sm:w-auto">
               <span className="text-sm font-semibold text-slate-700 shrink-0">Batch:</span>
               <select
@@ -449,12 +492,14 @@ export const RegistrationPage: React.FC = () => {
                 onChange={(e) => handleRosterBatchChange(Number(e.target.value))}
                 className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm h-9 focus:outline-none focus:ring-1 focus:ring-blue-600 w-full sm:w-auto"
               >
-                <option value={0}>-- Select Batch --</option>
-                {batches.map((b) => (
-                  <option key={b.batchId} value={b.batchId}>
-                    {b.examName} ({b.examYear})
-                  </option>
-                ))}
+                <option value={0}>-- All Batches --</option>
+                {batches
+                  .filter((b) => rosterYearFilter <= 0 || b.examYear === rosterYearFilter)
+                  .map((b) => (
+                    <option key={b.batchId} value={b.batchId}>
+                      {b.examName} ({b.examYear})
+                    </option>
+                  ))}
               </select>
             </div>
             <div className="flex items-center space-x-2 w-full sm:w-auto">
@@ -463,7 +508,7 @@ export const RegistrationPage: React.FC = () => {
                 onChange={(e) => setRosterSetFilter(Number(e.target.value))}
                 className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm h-9 focus:outline-none focus:ring-1 focus:ring-blue-600 w-full sm:w-auto"
               >
-                <option value="0">All Question Sets</option>
+                <option value="0">-- All Sets --</option>
                 {rosterSetOptions.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -495,29 +540,30 @@ export const RegistrationPage: React.FC = () => {
                   <TableHead>Candidate Name</TableHead>
                   <TableHead>Designation & Dept</TableHead>
                   <TableHead>Company & Location</TableHead>
+                  <TableHead>Exam Batch</TableHead>
                   <TableHead>Question Set Paper</TableHead>
                   <TableHead>Target Grade</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rosterBatchId <= 0 ? (
+                {rosterBatchId <= 0 && rosterYearFilter <= 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12">
+                    <TableCell colSpan={9} className="text-center py-12">
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                           <Users className="h-6 w-6" />
                         </div>
                         <div className="space-y-1">
-                          <p className="text-sm font-semibold text-slate-700">Select a Batch to view the roster</p>
-                          <p className="text-xs text-slate-500">Choose an exam batch from the Batch filter above.</p>
+                          <p className="text-sm font-semibold text-slate-700">Select a Year or Batch to view the roster</p>
+                          <p className="text-xs text-slate-500">Choose a year to see all examinees, or pick a specific exam batch.</p>
                         </div>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : loadingRegistrations ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-slate-500">
+                    <TableCell colSpan={9} className="text-center py-12 text-slate-500">
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
                         <span className="text-sm">Loading registered candidates...</span>
@@ -526,7 +572,7 @@ export const RegistrationPage: React.FC = () => {
                   </TableRow>
                 ) : filteredRegistrations.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12">
+                    <TableCell colSpan={9} className="text-center py-12">
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                           <Users className="h-6 w-6" />
@@ -563,6 +609,9 @@ export const RegistrationPage: React.FC = () => {
                       <TableCell className="text-xs text-slate-600">
                         <div className="font-medium text-slate-800">{r.companyName || '—'}</div>
                         <div className="text-slate-400">{r.locationName || '—'}</div>
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-700">
+                        {r.batchName || '—'}
                       </TableCell>
                       <TableCell className="text-xs">
                         <span className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium">

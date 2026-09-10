@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import api from '../services/api';
+import api, { clearSessionCache } from '../services/api';
 import { User, MenuItem, LoginResponse } from '../types';
 
 interface AuthContextType {
@@ -14,32 +14,51 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Session data is cached in sessionStorage only (per-tab, wiped on tab close
+// and on logout). These helpers never touch persistent localStorage.
+const readRaw = (key: string): string | null => {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const writeJson = (key: string, value: unknown): void => {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage blocked — session will simply not survive a refresh.
+  }
+};
+
+const safeParse = <T,>(raw: string | null): T | null => {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [menus, setMenus] = useState<MenuItem[]>([]);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(readRaw('token'));
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const resetAuthState = () => {
+    clearSessionCache();
+    setToken(null);
+    setUser(null);
+    setMenus([]);
+  };
+
   useEffect(() => {
-    const clearSession = () => {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('menus');
-    };
-
-    const safeParse = <T,>(raw: string | null): T | null => {
-      if (!raw) return null;
-      try {
-        return JSON.parse(raw) as T;
-      } catch {
-        return null;
-      }
-    };
-
     const initAuth = async () => {
-      const savedToken = localStorage.getItem('token');
-      const savedUser = safeParse<User>(localStorage.getItem('user'));
-      const savedMenus = safeParse<MenuItem[]>(localStorage.getItem('menus'));
+      const savedToken = readRaw('token');
+      const savedUser = safeParse<User>(readRaw('user'));
+      const savedMenus = safeParse<MenuItem[]>(readRaw('menus'));
 
       if (savedToken && savedUser) {
         setUser(savedUser);
@@ -50,33 +69,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const res = await api.get('/auth/me');
           setUser(res.data);
           setMenus(res.data.menus || []);
-          localStorage.setItem('user', JSON.stringify(res.data));
-          localStorage.setItem('menus', JSON.stringify(res.data.menus || []));
+          writeJson('user', res.data);
+          writeJson('menus', res.data.menus || []);
         } catch {
           // invalid or expired token — clear session so the login page shows
-          clearSession();
-          setToken(null);
-          setUser(null);
-          setMenus([]);
+          resetAuthState();
         }
       } else if (savedToken || savedUser) {
         // Corrupted/partial session data — clear it so the login page shows
-        clearSession();
-        setToken(null);
-        setUser(null);
-        setMenus([]);
+        resetAuthState();
+      } else {
+        // No active session: purge anything persisted by older versions of
+        // the app so no user data lingers in localStorage.
+        clearSessionCache();
       }
       setIsLoading(false);
     };
 
     initAuth().catch(() => {
       // Never leave the app stuck in the loading state
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('menus');
-      setToken(null);
-      setUser(null);
-      setMenus([]);
+      resetAuthState();
       setIsLoading(false);
     });
   }, []);
@@ -89,18 +101,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(userData);
     setMenus(menus);
 
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('menus', JSON.stringify(menus));
+    try {
+      sessionStorage.setItem('token', token);
+      sessionStorage.setItem('user', JSON.stringify(userData));
+      sessionStorage.setItem('menus', JSON.stringify(menus));
+    } catch {
+      // Storage blocked — session lives only in memory for this page load.
+    }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('menus');
-    setToken(null);
-    setUser(null);
-    setMenus([]);
+    // Wipe ALL cached session data (token, user, menus) from sessionStorage
+    // AND any legacy localStorage copies — after logout nothing remains and
+    // every API call will be rejected until the user signs in again.
+    resetAuthState();
     window.location.href = '/login';
   };
 
@@ -109,8 +123,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await api.get('/auth/me');
       setUser(res.data);
       setMenus(res.data.menus || []);
-      localStorage.setItem('user', JSON.stringify(res.data));
-      localStorage.setItem('menus', JSON.stringify(res.data.menus || []));
+      writeJson('user', res.data);
+      writeJson('menus', res.data.menus || []);
     } catch {
       // ignore
     }

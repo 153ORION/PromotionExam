@@ -21,7 +21,7 @@ namespace PromotionExam.WebApi.Controllers
 
         // GET /api/registrations — returns only IsActive=true records
         [HttpGet]
-        public async Task<IActionResult> GetRegistrations([FromQuery] int? batchId, [FromQuery] int? questionSetId)
+        public async Task<IActionResult> GetRegistrations([FromQuery] int? batchId, [FromQuery] int? questionSetId, [FromQuery] int? year)
         {
             var query = _context.ExamRegistrations
                 .Include(r => r.User)
@@ -32,6 +32,9 @@ namespace PromotionExam.WebApi.Controllers
 
             if (batchId.HasValue && batchId.Value > 0)
                 query = query.Where(r => r.BatchId == batchId.Value);
+
+            if (year.HasValue && year.Value > 0)
+                query = query.Where(r => r.Batch != null && r.Batch.ExamYear == year.Value);
 
             if (questionSetId.HasValue && questionSetId.Value > 0)
                 query = query.Where(r => r.QuestionSetId == questionSetId.Value);
@@ -99,6 +102,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(list);
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpGet("search-employee")]
         public async Task<IActionResult> SearchEmployee([FromQuery] string query)
         {
@@ -130,6 +134,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(user);
         }
 
+        [Authorize(Policy = "AdminOnly")]
         // POST /api/registrations — register an employee; blocks only if an ACTIVE registration exists
         [HttpPost]
         public async Task<IActionResult> Register([FromBody] RegistrationCreateDto dto)
@@ -195,6 +200,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(new { message = "Employee registered for exam batch successfully.", examineeId = registration.ExamineeId });
         }
 
+        [Authorize(Policy = "AdminOnly")]
         // PATCH /api/registrations/{id}/deactivate — soft delete (sets IsActive = false)
         [HttpPatch("{id}/deactivate")]
         public async Task<IActionResult> Deactivate(int id)
@@ -210,6 +216,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(new { message = "Examinee unregistered successfully." });
         }
 
+        [Authorize(Policy = "AdminOnly")]
         // DELETE /api/registrations/{id} — hard delete (kept for admin use)
         [HttpDelete("{id}")]
         public async Task<IActionResult> Unregister(int id)

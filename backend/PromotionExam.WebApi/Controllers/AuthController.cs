@@ -21,14 +21,14 @@ namespace PromotionExam.WebApi.Controllers
         private readonly ICryptographyService _crypto;
         private readonly IJwtTokenGenerator _jwt;
         private readonly IUserActivityService _activityService;
-        private readonly PromotionExam.Application.Common.Interfaces.ICandidateExamService _candidateExamService;
+        private readonly ICandidateExamService _candidateExamService;
 
         public AuthController(
             ApplicationDbContext context, 
             ICryptographyService crypto, 
             IJwtTokenGenerator jwt,
             IUserActivityService activityService,
-            PromotionExam.Application.Common.Interfaces.ICandidateExamService candidateExamService)
+            ICandidateExamService candidateExamService)
         {
             _context = context;
             _crypto = crypto;
@@ -37,6 +37,10 @@ namespace PromotionExam.WebApi.Controllers
             _candidateExamService = candidateExamService;
         }
 
+        // Must stay anonymously accessible — it is the entry point for obtaining
+        // a token and is explicitly exempted from the authenticated-by-default
+        // fallback policy.
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
@@ -56,9 +60,28 @@ namespace PromotionExam.WebApi.Controllers
             if (!isPasswordValid)
                 return Unauthorized(new { message = "Invalid Employee ID or Password. Please try again." });
 
+            var isExaminerOfActiveBatch = await IsExaminerOfActiveBatchAsync(user.HRRecordId);
+
+            // Access gate: only Administrators, Super Administrators, or Examiners assigned
+            // to an active exam batch may log in to the Promotion Assessment Platform.
+            // Regular examinee employees use the separate candidate exam portal instead.
+            if (user.IsAdmin != true && user.IsSuperAdmin != true && !isExaminerOfActiveBatch)
+            {
+                var deniedIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+                await _activityService.LogAsync(
+                    user.HRRecordId,
+                    user.LoginId,
+                    user.Name,
+                    "Examinee",
+                    "AUTH",
+                    "LOGIN_DENIED",
+                    $"User '{user.Name}' ({user.LoginId}) was denied platform access — not an Admin/SuperAdmin/Examiner.",
+                    deniedIp);
+                return Unauthorized(new { message = "Access denied. Only Administrators, Super Administrators, or Examiners assigned to an active exam batch can log in to this platform." });
+            }
+
             var token = _jwt.GenerateToken(user);
             var menus = await GetUserMenusAsync(user.IsSuperAdmin == true);
-            var isExaminerOfActiveBatch = await IsExaminerOfActiveBatchAsync(user.HRRecordId);
 
             var response = new LoginResponseDto
             {
@@ -134,8 +157,8 @@ namespace PromotionExam.WebApi.Controllers
             if (request.NewPassword != request.ConfirmPassword)
                 return BadRequest(new { message = "New Password and Confirm Password do not match." });
 
-            if (request.NewPassword.Length < 4)
-                return BadRequest(new { message = "Password must be at least 4 characters long." });
+            if (request.NewPassword.Length < 6)
+                return BadRequest(new { message = "Password must be at least 6 characters long." });
 
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!long.TryParse(userIdClaim, out var hrRecordId))
@@ -220,14 +243,19 @@ namespace PromotionExam.WebApi.Controllers
             return result;
         }
 
-        #region -------- API Project Auth Endpoints --------
+        #region -------- API Project Auth Endpoints (Legacy Candidate Exam Portal) --------
 
+        // These endpoints serve the legacy candidate exam client application and must
+        // remain anonymously accessible; they are intentionally excluded from the
+        // authenticated-by-default fallback policy.
+        [AllowAnonymous]
         [HttpGet("/Api/Auth/Login")]
         public async Task<ResponseDTO> LegacyLogin([FromQuery] string employeeId, [FromQuery] string password)
         {
             return await _candidateExamService.UserLogin(employeeId, password);
         }
 
+        [AllowAnonymous]
         [HttpPost("/Api/Auth/UpdatePassword")]
         public async Task<ResponseDTO> LegacyUpdatePassword([FromQuery] string employeeId, [FromQuery] string password)
         {

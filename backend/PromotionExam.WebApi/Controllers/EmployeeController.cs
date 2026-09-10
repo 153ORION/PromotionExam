@@ -1,11 +1,13 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PromotionExam.Application.Common.Interfaces;
 using PromotionExam.Application.DTOs.CandidateAttempt;
 
 namespace PromotionExam.WebApi.Controllers
 {
+    [AllowAnonymous]
     [ApiController]
     [Route("Api/[controller]/[action]")]
     public class EmployeeController : ControllerBase

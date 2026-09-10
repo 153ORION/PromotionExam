@@ -98,6 +98,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(result);
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("sets")]
         public async Task<IActionResult> SaveSet([FromBody] QuestionSetCreateUpdateDto dto)
         {
@@ -136,6 +137,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(new { message = "Question Set saved successfully." });
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("sets/toggle/{id}")]
         public async Task<IActionResult> ToggleSetStatus(int id)
         {
@@ -277,6 +279,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(dto);
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost]
         public async Task<IActionResult> SaveQuestion([FromBody] QuestionCreateUpdateDto dto)
         {
@@ -367,6 +370,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(rubric);
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("{id}/ai-rubric/generate")]
         public async Task<IActionResult> GenerateAiRubric(int id, [FromQuery] bool forceRegenerate = false)
         {
@@ -399,6 +403,7 @@ namespace PromotionExam.WebApi.Controllers
             }
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("{id}/standard-answer/generate")]
         public async Task<IActionResult> GenerateStandardAnswer(int id)
         {
@@ -507,6 +512,7 @@ namespace PromotionExam.WebApi.Controllers
             }
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("sets/{setId}/generate-rubrics")]
         public async Task<IActionResult> GenerateSetRubrics(
             int setId,
@@ -635,6 +641,7 @@ namespace PromotionExam.WebApi.Controllers
             });
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteQuestion(int id)
         {

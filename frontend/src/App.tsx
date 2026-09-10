@@ -74,30 +74,38 @@ export const App: React.FC = () => {
                 <Route path="/question-bank/viewer" element={<QuestionViewerPage />} />
                 <Route path="/viewer/rubrics" element={<RubricsViewerPage />} />
 
-                {/* Question Bank Module */}
-                <Route path="/question-bank/sets" element={<QuestionSetsPage />} />
-                <Route path="/question-bank/mcq" element={<QuestionMCQPage />} />
-                <Route path="/question-bank/narrative" element={<QuestionNarrativePage />} />
-                <Route path="/question-bank/generate-rubrics" element={<QuestionRubricGeneratePage />} />
+                {/* Admin-only pages: question bank management, marking setup,
+                    HR panel and admin module. Examiners are redirected away. */}
+                <Route element={<ProtectedRoute requireAdmin />}>
+                  {/* Question Bank Module (management) */}
+                  <Route path="/question-bank/sets" element={<QuestionSetsPage />} />
+                  <Route path="/question-bank/mcq" element={<QuestionMCQPage />} />
+                  <Route path="/question-bank/narrative" element={<QuestionNarrativePage />} />
+                  <Route path="/question-bank/generate-rubrics" element={<QuestionRubricGeneratePage />} />
 
-                {/* Marking Module */}
-                <Route path="/marking/flow-path" element={<FlowPathPage />} />
-                <Route path="/marking/flow-path/assign" element={<AssignExaminerPage />} />
-                <Route path="/marking/assign-examiner" element={<AssignExaminerPage />} />
+                  {/* Marking Module (setup & assignment) */}
+                  <Route path="/marking/flow-path" element={<FlowPathPage />} />
+                  <Route path="/marking/flow-path/assign" element={<AssignExaminerPage />} />
+                  <Route path="/marking/assign-examiner" element={<AssignExaminerPage />} />
+
+                  {/* HR Panel Module */}
+                  <Route path="/hr/batches" element={<ExamBatchesPage />} />
+                  <Route path="/hr/registration" element={<RegistrationPage />} />
+                  <Route path="/hr/unregistration" element={<UnregistrationPage />} />
+                  <Route path="/hr/time-editor" element={<TimeEditorPage />} />
+
+                  {/* Admin Module */}
+                  <Route path="/admin/lookup-types" element={<LookupTypePage />} />
+                  <Route path="/admin/lookups" element={<LookupPage />} />
+                  <Route path="/admin/users" element={<UserManagementPage />} />
+                  <Route path="/admin/activity-logs" element={<UserActivityPage />} />
+                  <Route path="/admin/system-config" element={<SystemConfigPage />} />
+                </Route>
+
+                {/* Accessible to every authenticated user (Admin, SuperAdmin,
+                    and assigned Examiners): viewers, marking screen, dashboard,
+                    profile and the fullscreen candidate exam portal. */}
                 <Route path="/marking/narrative-score" element={<NarrativeScorePage />} />
-
-                {/* HR Panel Module */}
-                <Route path="/hr/batches" element={<ExamBatchesPage />} />
-                <Route path="/hr/registration" element={<RegistrationPage />} />
-                <Route path="/hr/unregistration" element={<UnregistrationPage />} />
-                <Route path="/hr/time-editor" element={<TimeEditorPage />} />
-
-                {/* Admin Module */}
-                <Route path="/admin/lookup-types" element={<LookupTypePage />} />
-                <Route path="/admin/lookups" element={<LookupPage />} />
-                <Route path="/admin/users" element={<UserManagementPage />} />
-                <Route path="/admin/activity-logs" element={<UserActivityPage />} />
-                <Route path="/admin/system-config" element={<SystemConfigPage />} />
               </Route>
 
               {/* Fullscreen Candidate Exam Mode (without standard sidebar distraction) */}

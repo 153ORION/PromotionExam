@@ -9,7 +9,7 @@ using PromotionExam.Infrastructure.Data;
 
 namespace PromotionExam.WebApi.Controllers
 {
-    [Authorize]
+    [Authorize(Policy = "AdminOnly")]
     [ApiController]
     [Route("api/system/activitylogs")]
     public class ActivityLogsController : ControllerBase

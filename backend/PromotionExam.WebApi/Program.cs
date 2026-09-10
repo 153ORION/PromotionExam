@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -66,7 +67,20 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Role-based authorization policies used across controllers.
+    // JWT tokens carry "SuperAdmin", "Admin" (SuperAdmin gets both) or "Examinee" role claims.
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin", "SuperAdmin"));
+    options.AddPolicy("SuperAdminOnly", policy => policy.RequireRole("SuperAdmin"));
+
+    // Secure-by-default: any endpoint without an explicit [Authorize] or [AllowAnonymous]
+    // attribute now requires an authenticated user. Legacy candidate-portal endpoints
+    // must declare [AllowAnonymous] explicitly to remain reachable by the exam client app.
+    options.FallbackPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)
+        .RequireAuthenticatedUser()
+        .Build();
+});
 
 // 5. CORS Configuration
 builder.Services.AddCors(options =>

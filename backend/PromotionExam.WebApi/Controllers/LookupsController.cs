@@ -56,6 +56,7 @@ namespace PromotionExam.WebApi.Controllers
             });
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("types")]
         public async Task<IActionResult> SaveLookupType([FromBody] LookupTypeCreateUpdateDto dto)
         {
@@ -88,6 +89,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(new { message = "Lookup Type saved successfully." });
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("types/toggle/{id}")]
         public async Task<IActionResult> ToggleTypeStatus(int id)
         {
@@ -135,6 +137,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(items);
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("items")]
         public async Task<IActionResult> SaveLookupItem([FromBody] LookupCreateUpdateDto dto)
         {
@@ -174,6 +177,7 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(new { message = "Lookup item saved successfully." });
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("items/toggle/{id}")]
         public async Task<IActionResult> ToggleItemStatus(int id)
         {

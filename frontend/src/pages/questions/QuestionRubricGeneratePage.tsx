@@ -800,7 +800,10 @@ export const QuestionRubricGeneratePage: React.FC = () => {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleGenerateSingle(q, q.aiRubricStatus === 'Outdated')}
+                      // Force regeneration whenever a rubric already exists (Ready or
+                      // Outdated); otherwise the backend dedupe would silently return
+                      // the unchanged existing rubric without calling Gemini.
+                      onClick={() => handleGenerateSingle(q, q.aiRubricStatus === 'Ready' || q.aiRubricStatus === 'Outdated')}
                       disabled={isItemBusy || isBatchRunning || !hasModelAnswer}
                       className={`text-xs ${
                         q.aiRubricStatus === 'Outdated'

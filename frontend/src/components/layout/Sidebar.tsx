@@ -57,7 +57,7 @@ export const Sidebar: React.FC = () => {
 
   return (
     <aside className="w-64 flex-shrink-0 border-r border-slate-200 bg-white flex flex-col justify-between h-full sticky top-16 overflow-y-auto">
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-1">
         {isExaminerOnlyUser ? (
           /* Restricted Examiner Menu */
           <div className="space-y-1">

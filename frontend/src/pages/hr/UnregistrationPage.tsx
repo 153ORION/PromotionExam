@@ -4,8 +4,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle, Filter, UserX, Users } from 'lucide-react';
-import { ExamRegistration, ExamBatch } from '@/types';
+import { AlertCircle, CheckCircle, UserX, Users } from 'lucide-react';
+import { ExamRegistration, ExamBatch, LookupItem } from '@/types';
 
 interface SetOption {
   setId: number;
@@ -19,17 +19,28 @@ export const UnregistrationPage: React.FC = () => {
   const [setOptions, setSetOptions] = useState<SetOption[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<number>(0);
   const [selectedSetId, setSelectedSetId] = useState<number>(0);
+  const [selectedYear, setSelectedYear] = useState<number>(0);
+  const [examYears, setExamYears] = useState<{ value: number; label: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // On mount: load only batches — no auto-select (default "-- Select Batch --" = 0)
+  // On mount: load batches + exam year lookups (typeid = 1) — no auto-select
   useEffect(() => {
     const initData = async () => {
       try {
-        const resBatches = await api.get('/batches');
+        const [resBatches, resYears] = await Promise.all([
+          api.get('/batches'),
+          api.get('/lookups/items', { params: { typeId: 1 } })
+        ]);
         const activeBatches = (resBatches.data || []).filter((b: ExamBatch) => b.isActive !== false);
         setBatches(activeBatches);
+        setExamYears(
+          ((resYears.data || []) as LookupItem[]).map((y) => ({
+            value: Number(y.lookupText) || y.lookupId,
+            label: y.lookupText
+          }))
+        );
       } catch (err) {
         console.error(err);
       }
@@ -37,9 +48,11 @@ export const UnregistrationPage: React.FC = () => {
     initData();
   }, []);
 
-  // Load ACTIVE registrations (IsActive = 1 only) for the selected batch and derive the Set dropdown
-  const loadBatchRegistrations = async (batchId: number) => {
-    if (batchId <= 0) {
+  // Load ACTIVE registrations (IsActive = 1 only) filtered by batch, or by year across all batches
+  const loadRegistrations = async (filters?: { batchId?: number; year?: number }) => {
+    const fBatchId = filters?.batchId !== undefined ? filters.batchId : selectedBatchId;
+    const fYear = filters?.year !== undefined ? filters.year : selectedYear;
+    if (fBatchId <= 0 && fYear <= 0) {
       setBatchRegistrations([]);
       setSetOptions([]);
       return;
@@ -48,11 +61,16 @@ export const UnregistrationPage: React.FC = () => {
     setLoading(true);
     try {
       // Backend returns only IsActive = 1 records from Exam_Registration
-      const res = await api.get('/registrations', { params: { batchId } });
+      const res = await api.get('/registrations', {
+        params: {
+          batchId: fBatchId > 0 ? fBatchId : undefined,
+          year: fBatchId <= 0 && fYear > 0 ? fYear : undefined
+        }
+      });
       const regs: ExamRegistration[] = res.data || [];
       setBatchRegistrations(regs);
 
-      // Set dropdown is built from the active registrations of the selected batch
+      // Set dropdown is built from the loaded registrations
       const distinctSets = Array.from(
         new Map(regs.map((r) => [r.questionSetId, r.setName || 'Default Set'])).entries()
       ).map(([setId, setName]) => ({
@@ -70,6 +88,19 @@ export const UnregistrationPage: React.FC = () => {
     }
   };
 
+  // When year changes: reset batch/set selections and load all batches of that year
+  const handleYearChange = (year: number) => {
+    setSelectedYear(year);
+    setSelectedBatchId(0);
+    setSelectedSetId(0);
+    setBatchRegistrations([]);
+    setSetOptions([]);
+    setSuccessMessage(null);
+    setErrorMessage(null);
+
+    if (year > 0) loadRegistrations({ batchId: 0, year });
+  };
+
   // When batch changes: reset Set selection + registrations, then load batch data
   const handleBatchChange = (batchId: number) => {
     setSelectedBatchId(batchId);
@@ -79,20 +110,22 @@ export const UnregistrationPage: React.FC = () => {
     setSuccessMessage(null);
     setErrorMessage(null);
 
-    if (batchId > 0) loadBatchRegistrations(batchId);
+    if (batchId > 0) loadRegistrations({ batchId });
+    else if (selectedYear > 0) loadRegistrations({ batchId: 0, year: selectedYear });
   };
 
-  // When set changes: no examinees are shown until a Set is selected
+  // When set changes: just refresh feedback messages (0 = All Sets)
   const handleSetChange = (setId: number) => {
     setSelectedSetId(setId);
     setSuccessMessage(null);
     setErrorMessage(null);
   };
 
-  // Examinees are ONLY listed when both Batch and Set are selected
+  // Examinees are listed once a Batch (or Year) is selected;
+  // if a specific Set is chosen, filter to that set only
   const visibleRegistrations =
-    selectedBatchId > 0 && selectedSetId > 0
-      ? batchRegistrations.filter((r) => r.questionSetId === selectedSetId)
+    selectedBatchId > 0 || selectedYear > 0
+      ? batchRegistrations.filter((r) => selectedSetId <= 0 || r.questionSetId === selectedSetId)
       : [];
 
   // Soft delete: PATCH /registrations/{id}/deactivate sets IsActive = 0 only.
@@ -106,7 +139,7 @@ export const UnregistrationPage: React.FC = () => {
     try {
       await api.patch(`/registrations/${examineeId}/deactivate`);
       setSuccessMessage(`${name} has been unregistered successfully (soft deleted — IsActive set to 0).`);
-      await loadBatchRegistrations(selectedBatchId);
+      await loadRegistrations();
     } catch (err: any) {
       setErrorMessage(err.response?.data?.message || 'Failed to unregister examinee.');
     }
@@ -141,18 +174,36 @@ export const UnregistrationPage: React.FC = () => {
       <Card className="p-4 border-slate-200 shadow-sm bg-slate-50/50">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center space-x-2">
+            <span className="text-sm font-semibold text-slate-700">Year:</span>
+            <select
+              value={selectedYear}
+              onChange={(e) => handleYearChange(Number(e.target.value))}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm"
+            >
+              <option value={0}>-- All Years --</option>
+              {examYears.map((y) => (
+                <option key={y.value} value={y.value}>
+                  {y.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-2">
             <span className="text-sm font-semibold text-slate-700">Examination Batch:</span>
             <select
               value={selectedBatchId}
               onChange={(e) => handleBatchChange(Number(e.target.value))}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm"
             >
-              <option value={0}>-- Select Batch --</option>
-              {batches.map((b) => (
-                <option key={b.batchId} value={b.batchId}>
-                  {b.examName}
-                </option>
-              ))}
+              <option value={0}>-- All Batches --</option>
+              {batches
+                .filter((b) => selectedYear <= 0 || b.examYear === selectedYear)
+                .map((b) => (
+                  <option key={b.batchId} value={b.batchId}>
+                    {b.examName}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -161,10 +212,10 @@ export const UnregistrationPage: React.FC = () => {
             <select
               value={selectedSetId}
               onChange={(e) => handleSetChange(Number(e.target.value))}
-              disabled={selectedBatchId <= 0}
+              disabled={selectedBatchId <= 0 && selectedYear <= 0}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value={0}>-- Select Set --</option>
+              <option value={0}>-- All Sets --</option>
               {setOptions.map((s) => (
                 <option key={s.setId} value={s.setId}>
                   {s.setName} ({s.count})
@@ -173,7 +224,7 @@ export const UnregistrationPage: React.FC = () => {
             </select>
           </div>
 
-          {selectedSetId > 0 && (
+          {(selectedBatchId > 0 || selectedYear > 0) && (
             <div className="ml-auto text-xs font-semibold text-slate-500">
               Active Registered: {visibleRegistrations.length}
             </div>
@@ -185,7 +236,7 @@ export const UnregistrationPage: React.FC = () => {
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle>Registered Examinees</CardTitle>
-          <CardDescription>Active candidates assigned to take the selected exam batch and set.</CardDescription>
+          <CardDescription>Active candidates assigned to the selected exam batch/year and question set.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -201,23 +252,13 @@ export const UnregistrationPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {selectedBatchId <= 0 ? (
+              {selectedBatchId <= 0 && selectedYear <= 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-12">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <Users className="h-8 w-8 text-slate-300" />
-                      <p className="text-sm font-semibold text-slate-600">Select an Exam Batch to continue</p>
-                      <p className="text-xs text-slate-400">Choose a batch from the filter above, then select a question set.</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : selectedSetId <= 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
-                    <div className="flex flex-col items-center justify-center space-y-2">
-                      <Filter className="h-8 w-8 text-slate-300" />
-                      <p className="text-sm font-semibold text-slate-600">Select a Question Set to view examinees</p>
-                      <p className="text-xs text-slate-400">No examinees are shown until a question set is selected.</p>
+                      <p className="text-sm font-semibold text-slate-600">Select a Year or Exam Batch to continue</p>
+                      <p className="text-xs text-slate-400">Pick a year to see all its batches, or choose a specific batch, then select a question set.</p>
                     </div>
                   </TableCell>
                 </TableRow>
