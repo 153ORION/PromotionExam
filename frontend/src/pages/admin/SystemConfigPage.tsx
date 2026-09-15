@@ -69,6 +69,22 @@ export const SystemConfigPage: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // A failed request only carries `message` when the API itself rejected it. When IIS or
+  // the reverse proxy answers instead the body is an HTML error page, so falling back to a
+  // fixed string ("Failed to update settings") hides the only useful clue — the status
+  // code. 405 in particular means the HTTP verb never reached the API at all.
+  const describeError = (err: any, fallback: string) => {
+    const serverMessage = err?.response?.data?.message;
+    if (serverMessage) return serverMessage;
+
+    const status = err?.response?.status;
+    if (status === 405) {
+      return `${fallback} The server rejected the request method (HTTP 405) — the API never received it. On IIS this is the WebDAV module intercepting PUT/DELETE.`;
+    }
+    if (status) return `${fallback} (HTTP ${status})`;
+    return `${fallback} The API could not be reached.`;
+  };
+
   const fetchConfig = async () => {
     setLoading(true);
     try {
@@ -116,7 +132,7 @@ export const SystemConfigPage: React.FC = () => {
     } catch (err: any) {
       setTestResult({
         success: false,
-        message: err.response?.data?.message || 'Failed to connect to Google Gemini API.'
+        message: describeError(err, 'Failed to connect to Google Gemini API.')
       });
     } finally {
       setTestingKey(false);
@@ -154,9 +170,9 @@ export const SystemConfigPage: React.FC = () => {
       fetchConfig();
       refreshConfig();
     } catch (err: any) {
-      setFeedback({ 
-        type: 'error', 
-        message: err.response?.data?.message || 'Failed to upload logo.' 
+      setFeedback({
+        type: 'error',
+        message: describeError(err, 'Failed to upload logo.')
       });
     } finally {
       setUploading(false);
@@ -191,9 +207,9 @@ export const SystemConfigPage: React.FC = () => {
       setFeedback({ type: 'success', message: 'System configuration settings saved successfully!' });
       refreshConfig();
     } catch (err: any) {
-      setFeedback({ 
-        type: 'error', 
-        message: err.response?.data?.message || 'Failed to update system settings.' 
+      setFeedback({
+        type: 'error',
+        message: describeError(err, 'Failed to update system settings.')
       });
     } finally {
       setSaving(false);

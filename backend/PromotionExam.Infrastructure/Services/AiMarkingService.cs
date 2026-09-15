@@ -673,9 +673,7 @@ namespace PromotionExam.Infrastructure.Services
 
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, url);
-                request.Headers.Add("x-goog-api-key", apiKey);
-                request.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonOptions), Encoding.UTF8, "application/json");
+                using var request = BuildGeminiRequest(url, requestBody, apiKey);
 
                 using var response = await _httpClient.SendAsync(request);
                 var raw = await response.Content.ReadAsStringAsync();
@@ -731,9 +729,7 @@ namespace PromotionExam.Infrastructure.Services
                 }
             };
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Add("x-goog-api-key", apiKey);
-            request.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonOptions), Encoding.UTF8, "application/json");
+            using var request = BuildGeminiRequest(url, requestBody, apiKey);
 
             using var response = await _httpClient.SendAsync(request);
             var raw = await response.Content.ReadAsStringAsync();
@@ -797,9 +793,7 @@ namespace PromotionExam.Infrastructure.Services
                 }
             };
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Add("x-goog-api-key", apiKey);
-            request.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonOptions), Encoding.UTF8, "application/json");
+            using var request = BuildGeminiRequest(url, requestBody, apiKey);
 
             using var response = await _httpClient.SendAsync(request);
             var raw = await response.Content.ReadAsStringAsync();
@@ -812,6 +806,29 @@ namespace PromotionExam.Infrastructure.Services
 
             var outputText = ExtractGeminiOutputText(raw);
             return outputText.Trim();
+        }
+
+        /// <summary>
+        /// Builds a Gemini POST request authenticated with the API key only.
+        /// </summary>
+        /// <remarks>
+        /// Google's API frontend gives an OAuth2 credential priority over the
+        /// <c>x-goog-api-key</c> header: if an <c>Authorization</c> header reaches it, the
+        /// API key is ignored entirely and the call fails with
+        /// <c>401 UNAUTHENTICATED / ACCESS_TOKEN_TYPE_UNSUPPORTED</c> ("Expected OAuth 2
+        /// access token, login cookie or other valid authentication credential") even
+        /// though the key is perfectly valid. Clearing the client's default Authorization
+        /// header keeps a stray bearer token -- e.g. one left behind by the old OpenAI code
+        /// path -- from hijacking every AI call.
+        /// </remarks>
+        private HttpRequestMessage BuildGeminiRequest(string url, object requestBody, string apiKey)
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = null;
+
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Add("x-goog-api-key", apiKey);
+            request.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonOptions), Encoding.UTF8, "application/json");
+            return request;
         }
 
         private static string ExtractGeminiOutputText(string rawResponse)
@@ -899,14 +916,40 @@ namespace PromotionExam.Infrastructure.Services
                 using var doc = JsonDocument.Parse(rawResponse);
                 if (doc.RootElement.TryGetProperty("error", out var errorObj))
                 {
-                    if (errorObj.TryGetProperty("message", out var msg))
-                        return msg.GetString() ?? rawResponse;
+                    if (!errorObj.TryGetProperty("message", out var msg))
+                        return rawResponse;
+
+                    var message = msg.GetString() ?? rawResponse;
+
+                    // Google's prose message is ambiguous on its own -- "invalid authentication
+                    // credentials" covers a bad key, a missing key and a stray bearer token
+                    // alike. The machine-readable reason (API_KEY_INVALID, SERVICE_DISABLED,
+                    // ACCESS_TOKEN_TYPE_UNSUPPORTED, ...) names the real fault, so surface it.
+                    var reason = ExtractGeminiErrorReason(errorObj);
+                    return string.IsNullOrEmpty(reason) ? message : $"{message} [reason: {reason}]";
                 }
             }
             catch
             {
             }
             return rawResponse;
+        }
+
+        private static string? ExtractGeminiErrorReason(JsonElement errorObj)
+        {
+            if (errorObj.TryGetProperty("details", out var details) && details.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var detail in details.EnumerateArray())
+                {
+                    if (detail.TryGetProperty("reason", out var reason) && reason.ValueKind == JsonValueKind.String)
+                        return reason.GetString();
+                }
+            }
+
+            if (errorObj.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String)
+                return status.GetString();
+
+            return null;
         }
 
         private static void NormalizeRubric(GeneratedRubricResponse rubric, decimal maxMarks)
