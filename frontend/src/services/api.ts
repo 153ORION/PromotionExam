@@ -32,8 +32,20 @@ export const clearSessionCache = () => {
   }
 };
 
+// Origin of the PromotionExam Web API, set per build via VITE_API_BASE_URL
+// (see .env.production). Empty means same origin, e.g. the Vite dev proxy.
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
+
+// The API returns server-relative file paths (e.g. "/uploads/logos/x.png"); these must
+// load from the API host, not from the host serving the frontend.
+export const resolveApiUrl = (path?: string | null): string | undefined => {
+  if (!path) return undefined;
+  if (/^(https?:|data:|blob:)/i.test(path)) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: `${API_BASE_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },

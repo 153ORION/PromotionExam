@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api from '@/services/api';
+import api, { resolveApiUrl } from '@/services/api';
 import { useSystemConfig } from '@/context/SystemConfigContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -265,7 +265,7 @@ export const SystemConfigPage: React.FC = () => {
                 {previewUrl ? (
                   <img src={previewUrl} alt="Preview Logo" className="h-full w-full object-contain" />
                 ) : logoUrl ? (
-                  <img src={logoUrl} alt="Company Logo" className="h-full w-full object-contain" onError={(e) => {
+                  <img src={resolveApiUrl(logoUrl)} alt="Company Logo" className="h-full w-full object-contain" onError={(e) => {
                     // Fallback to text initials if image path not found
                     (e.target as HTMLElement).style.display = 'none';
                   }} />

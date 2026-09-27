@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api from '../services/api';
+import api, { resolveApiUrl } from '../services/api';
 
 export interface SystemConfig {
   configId: number;
@@ -49,7 +49,7 @@ export const SystemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
         link.rel = 'icon';
         document.head.appendChild(link);
       }
-      link.href = cfg.logoUrl;
+      link.href = resolveApiUrl(cfg.logoUrl) ?? cfg.logoUrl;
     }
   };
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSystemConfig } from '@/context/SystemConfigContext';
 import { Building2 } from 'lucide-react';
+import { resolveApiUrl } from '@/services/api';
 
 interface CompanyLogoProps {
   className?: string;
@@ -22,7 +23,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
   const { config } = useSystemConfig();
   const [hasError, setHasError] = useState(false);
 
-  const logoSrc = config?.logoUrl;
+  const logoSrc = resolveApiUrl(config?.logoUrl);
   const companyName = config?.companyName || 'ORION';
   const shortInitials = fallbackText || config?.companyShortName || companyName.slice(0, 2).toUpperCase() || 'PE';
 
