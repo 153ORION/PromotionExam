@@ -13,6 +13,7 @@ namespace PromotionExam.Infrastructure.Data
         {
             context.Database.EnsureCreated();
             EnsureAiMarkingSchema(context);
+            EnsureBulkQuestionSchema(context);
 
             // 1. Seed Users
             if (!context.SysUserRegistrations.Any())
@@ -405,6 +406,115 @@ IF COL_LENGTH(N'[dbo].[Sys_CompanyConfiguration]', 'GeminiApiKey') IS NOT NULL
 BEGIN
     EXEC(N'UPDATE [dbo].[Sys_CompanyConfiguration] SET [GeminiApiKey] = [OpenAiApiKey] WHERE [GeminiApiKey] IS NULL AND [OpenAiApiKey] IS NOT NULL;');
 END
+");
+        }
+
+        // Table for the Question Bank Excel upload (Question Bank > Upload Excel / Fix Questions).
+        // Creates the table on a new database and upgrades a table created by an earlier version:
+        // adds the dispute/duplicate/error and Sys_Lookup id columns (flagging existing rows whose Type is not MCQ/Descriptive
+        // or whose Part is not 1/2/3) and drops the columns that are not in the QB.xlsx layout.
+        private static void EnsureBulkQuestionSchema(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF OBJECT_ID(N'[dbo].[Bulk_Questions_Excel]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Bulk_Questions_Excel](
+        [BulkQuestionId] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UploadBatchId] [uniqueidentifier] NOT NULL,
+        [FileName] [nvarchar](260) NOT NULL,
+        [SheetName] [nvarchar](100) NULL,
+        [FileHash] [nvarchar](64) NULL,
+        [ExcelRowNo] [int] NOT NULL,
+        [Grade] [nvarchar](100) NULL,
+        [Department] [nvarchar](200) NULL,
+        [JobConcentration] [nvarchar](200) NULL,
+        [Location] [nvarchar](200) NULL,
+        [DepartmentId] [int] NULL,
+        [GradeId] [int] NULL,
+        [LocationId] [int] NULL,
+        [ConcentrationId] [int] NULL,
+        [QuestionPart] [nvarchar](50) NULL,
+        [QuestionType] [nvarchar](100) NULL,
+        [Question] [nvarchar](max) NOT NULL,
+        [Option1] [nvarchar](max) NULL,
+        [Option2] [nvarchar](max) NULL,
+        [Option3] [nvarchar](max) NULL,
+        [Option4] [nvarchar](max) NULL,
+        [RightAnswer] [nvarchar](max) NULL,
+        [IsTypeDisputed] [bit] NOT NULL CONSTRAINT [DF_Bulk_Questions_Excel_IsTypeDisputed] DEFAULT(0),
+        [IsPartDisputed] [bit] NOT NULL CONSTRAINT [DF_Bulk_Questions_Excel_IsPartDisputed] DEFAULT(0),
+        [OriginalQuestionType] [nvarchar](100) NULL,
+        [OriginalQuestionPart] [nvarchar](50) NULL,
+        [DisputeResolvedBy] [bigint] NULL,
+        [DisputeResolvedAt] [datetime2] NULL,
+        [IsDuplicate] [bit] NOT NULL CONSTRAINT [DF_Bulk_Questions_Excel_IsDuplicate] DEFAULT(0),
+        [HasError] [bit] NOT NULL CONSTRAINT [DF_Bulk_Questions_Excel_HasError] DEFAULT(0),
+        [ErrorMessages] [nvarchar](max) NULL,
+        [UploadedBy] [bigint] NULL,
+        [UploadedAt] [datetime2] NOT NULL CONSTRAINT [DF_Bulk_Questions_Excel_UploadedAt] DEFAULT(GETDATE())
+    );
+END
+
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'SheetName') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [SheetName] [nvarchar](100) NULL;
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'OriginalQuestionType') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [OriginalQuestionType] [nvarchar](100) NULL;
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'OriginalQuestionPart') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [OriginalQuestionPart] [nvarchar](50) NULL;
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'DisputeResolvedBy') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [DisputeResolvedBy] [bigint] NULL;
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'DisputeResolvedAt') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [DisputeResolvedAt] [datetime2] NULL;
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'IsDuplicate') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [IsDuplicate] [bit] NOT NULL CONSTRAINT [DF_Bulk_Questions_Excel_IsDuplicate] DEFAULT(0);
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'DepartmentId') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [DepartmentId] [int] NULL;
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'GradeId') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [GradeId] [int] NULL;
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'LocationId') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [LocationId] [int] NULL;
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'ConcentrationId') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [ConcentrationId] [int] NULL;
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'HasError') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [HasError] [bit] NOT NULL CONSTRAINT [DF_Bulk_Questions_Excel_HasError] DEFAULT(0);
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'ErrorMessages') IS NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [ErrorMessages] [nvarchar](max) NULL;
+
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'IsTypeDisputed') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [IsTypeDisputed] [bit] NOT NULL CONSTRAINT [DF_Bulk_Questions_Excel_IsTypeDisputed] DEFAULT(0);
+    EXEC(N'
+        UPDATE [dbo].[Bulk_Questions_Excel] SET [QuestionType] = ''MCQ'' WHERE [QuestionType] = ''MCQ'';
+        UPDATE [dbo].[Bulk_Questions_Excel] SET [QuestionType] = ''Descriptive'' WHERE [QuestionType] = ''Descriptive'';
+        UPDATE [dbo].[Bulk_Questions_Excel]
+           SET [IsTypeDisputed] = 1, [OriginalQuestionType] = [QuestionType]
+         WHERE ISNULL([QuestionType], '''') NOT IN (''MCQ'', ''Descriptive'');');
+END
+
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'IsPartDisputed') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] ADD [IsPartDisputed] [bit] NOT NULL CONSTRAINT [DF_Bulk_Questions_Excel_IsPartDisputed] DEFAULT(0);
+    EXEC(N'
+        UPDATE [dbo].[Bulk_Questions_Excel]
+           SET [IsPartDisputed] = 1, [OriginalQuestionPart] = [QuestionPart]
+         WHERE ISNULL([QuestionPart], '''') NOT IN (''1'', ''2'', ''3'');');
+END
+
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'QuestionName') IS NOT NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] DROP COLUMN [QuestionName];
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'EmployeeIds') IS NOT NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] DROP COLUMN [EmployeeIds];
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'JdNo') IS NOT NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] DROP COLUMN [JdNo];
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'PrimaryKeyString') IS NOT NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] DROP COLUMN [PrimaryKeyString];
+IF COL_LENGTH(N'[dbo].[Bulk_Questions_Excel]', 'Remarks') IS NOT NULL
+    ALTER TABLE [dbo].[Bulk_Questions_Excel] DROP COLUMN [Remarks];
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Bulk_Questions_Excel_UploadBatchId' AND object_id = OBJECT_ID(N'[dbo].[Bulk_Questions_Excel]'))
+    CREATE INDEX [IX_Bulk_Questions_Excel_UploadBatchId] ON [dbo].[Bulk_Questions_Excel]([UploadBatchId]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Bulk_Questions_Excel_FileHash' AND object_id = OBJECT_ID(N'[dbo].[Bulk_Questions_Excel]'))
+    CREATE INDEX [IX_Bulk_Questions_Excel_FileHash] ON [dbo].[Bulk_Questions_Excel]([FileHash]);
 ");
         }
     }

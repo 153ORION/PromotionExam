@@ -1,9 +1,40 @@
 @import "tailwindcss";
 
+/* Application font: Book Antiqua.
+   Book Antiqua comes with MS Office, often only the regular face (BKANT.TTF), so the browser
+   fakes bold and italic. Each weight/style below takes the real Book Antiqua face when it is
+   installed and otherwise Palatino Linotype, the same Palatino design that every Windows PC
+   has with true bold and italic. Weights up to 549 (normal, medium) use the regular face;
+   600 and up (semibold, bold) use the bold face. Names are the full and PostScript font names. */
+@font-face {
+  font-family: 'App Book Antiqua';
+  font-style: normal;
+  font-weight: 1 549;
+  src: local('Book Antiqua'), local('BookAntiqua'), local('Palatino Linotype'), local('PalatinoLinotype-Roman'), local('Palatino');
+}
+@font-face {
+  font-family: 'App Book Antiqua';
+  font-style: normal;
+  font-weight: 550 1000;
+  src: local('Book Antiqua Bold'), local('BookAntiqua-Bold'), local('Palatino Linotype Bold'), local('PalatinoLinotype-Bold'), local('Palatino Bold');
+}
+@font-face {
+  font-family: 'App Book Antiqua';
+  font-style: italic;
+  font-weight: 1 549;
+  src: local('Book Antiqua Italic'), local('BookAntiqua-Italic'), local('Palatino Linotype Italic'), local('PalatinoLinotype-Italic'), local('Palatino Italic');
+}
+@font-face {
+  font-family: 'App Book Antiqua';
+  font-style: italic;
+  font-weight: 550 1000;
+  src: local('Book Antiqua Bold Italic'), local('BookAntiqua-BoldItalic'), local('Palatino Linotype Bold Italic'), local('PalatinoLinotype-BoldItalic'), local('Palatino Bold Italic');
+}
+
 @theme {
   /* Application-wide default font stack */
-  --default-font-family: 'Book Antiqua', 'Sans Serif', Monospace, Ubuntu, sans-serif;
-  --font-sans: 'Book Antiqua', 'Sans Serif', Monospace, Ubuntu, sans-serif;
+  --font-sans: 'App Book Antiqua', 'Book Antiqua', 'Palatino Linotype', Palatino, 'URW Palladio L', P052, Georgia, serif;
+  --default-font-family: var(--font-sans);
   --radius-xs: 0.0625rem;
   --radius-sm: 0.0625rem;
   --radius: 0.125rem;
@@ -41,7 +72,7 @@
 }
 
 body {
-  font-family: 'Book Antiqua', 'Sans Serif', Monospace, Ubuntu, sans-serif;
+  font-family: var(--font-sans);
   background-color: #f8fafc;
   color: #0f172a;
   min-height: 100vh;

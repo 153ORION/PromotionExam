@@ -23,6 +23,10 @@ import { QuestionNarrativePage } from '@/pages/questions/QuestionNarrativePage';
 import { QuestionRubricGeneratePage } from '@/pages/questions/QuestionRubricGeneratePage';
 import { QuestionViewerPage } from '@/pages/questions/QuestionViewerPage';
 import { RubricsViewerPage } from '@/pages/questions/RubricsViewerPage';
+import { QuestionBankUploadPage } from '@/pages/questions/QuestionBankUploadPage';
+import { FixQuestionsPage } from '@/pages/questions/FixQuestionsPage';
+import { LookupMappingPage } from '@/pages/questions/LookupMappingPage';
+import { UploadedQuestionsPage } from '@/pages/questions/UploadedQuestionsPage';
 
 // HR Panel & Marking
 import { ExamBatchesPage } from '@/pages/hr/ExamBatchesPage';
@@ -82,6 +86,11 @@ export const App: React.FC = () => {
                   <Route path="/question-bank/mcq" element={<QuestionMCQPage />} />
                   <Route path="/question-bank/narrative" element={<QuestionNarrativePage />} />
                   <Route path="/question-bank/generate-rubrics" element={<QuestionRubricGeneratePage />} />
+                  <Route path="/question-bank/upload" element={<QuestionBankUploadPage />} />
+                  <Route path="/question-bank/fix" element={<FixQuestionsPage />} />
+                  <Route path="/question-bank/mapping" element={<LookupMappingPage />} />
+                  <Route path="/question-bank/uploaded" element={<UploadedQuestionsPage />} />
+                  <Route path="/question-bank/disputed" element={<Navigate to="/question-bank/fix" replace />} />
 
                   {/* Marking Module (setup & assignment) */}
                   <Route path="/marking/flow-path" element={<FlowPathPage />} />

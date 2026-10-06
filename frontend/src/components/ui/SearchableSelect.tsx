@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, ChevronDown, X, Check, Loader2 } from 'lucide-react';
 
 export interface SearchableSelectOption {
@@ -20,7 +21,15 @@ interface SearchableSelectProps {
   onSearchChange?: (term: string) => void;
   className?: string;
   required?: boolean;
+  // Text shown when no option matches the search.
+  noResultsText?: string;
+  // Render the dropdown on document.body with a fixed position, so it is not clipped by a
+  // parent with overflow (e.g. a scrollable table). It opens upwards when there is no room below.
+  portal?: boolean;
 }
+
+const POPOVER_HEIGHT = 310; // search box + max-h-60 list
+const POPOVER_MIN_WIDTH = 280;
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   options,
@@ -32,19 +41,47 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   loading = false,
   onSearchChange,
   className = '',
-  required = false
+  required = false,
+  noResultsText = 'No employees found matching',
+  portal = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties | null>(null);
+
+  // Portal mode: place the dropdown under (or above) the trigger and follow it on scroll/resize.
+  useLayoutEffect(() => {
+    if (!isOpen || !portal) return;
+    const update = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const width = Math.max(rect.width, POPOVER_MIN_WIDTH);
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUp = spaceBelow < POPOVER_HEIGHT && rect.top > spaceBelow;
+      setPopoverStyle(openUp
+        ? { position: 'fixed', left, width, bottom: window.innerHeight - rect.top + 4 }
+        : { position: 'fixed', left, width, top: rect.bottom + 4 });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [isOpen, portal]);
 
   const selectedOption = options.find((opt) => String(opt.id) === String(selectedId));
 
   // Close dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (containerRef.current && !containerRef.current.contains(target) && !popoverRef.current?.contains(target)) {
         setIsOpen(false);
       }
     };
@@ -79,6 +116,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     const matchSubtitle = opt.subtitle ? opt.subtitle.toLowerCase().includes(term) : false;
     return matchTitle || matchCode || matchSubtitle;
   });
+
+  const wrapPopover = (popover: React.ReactElement) => (portal ? createPortal(popover, document.body) : popover);
 
   return (
     <div ref={containerRef} className={`relative w-full ${className}`}>
@@ -148,8 +187,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       </div>
 
       {/* Dropdown Popover */}
-      {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">
+      {isOpen && (!portal || popoverStyle) && wrapPopover(
+        <div
+          ref={popoverRef}
+          style={portal ? popoverStyle! : undefined}
+          className={`${portal ? 'z-[60]' : 'absolute left-0 top-full z-50 mt-1 w-full'} rounded-md border border-slate-200 bg-white shadow-lg`}
+        >
           {/* Search Box */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/70">
             <div className="relative">
@@ -187,7 +230,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               </div>
             ) : filteredOptions.length === 0 ? (
               <div className="py-6 text-center text-slate-500 text-xs">
-                No employees found matching &quot;<span className="font-semibold">{searchTerm}</span>&quot;
+                {noResultsText} &quot;<span className="font-semibold">{searchTerm}</span>&quot;
               </div>
             ) : (
               filteredOptions.map((opt) => {

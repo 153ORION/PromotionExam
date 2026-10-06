@@ -27,6 +27,7 @@ namespace PromotionExam.Infrastructure.Data
         public DbSet<ExamNarrativeAiEvaluation> ExamNarrativeAiEvaluations => Set<ExamNarrativeAiEvaluation>();
         public DbSet<SysUserActivityLog> SysUserActivityLogs => Set<SysUserActivityLog>();
         public DbSet<SysCompanyConfig> SysCompanyConfigs => Set<SysCompanyConfig>();
+        public DbSet<BulkQuestionExcel> BulkQuestionsExcel => Set<BulkQuestionExcel>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -169,6 +170,12 @@ namespace PromotionExam.Infrastructure.Data
             modelBuilder.Entity<SysCompanyConfig>(entity =>
             {
                 entity.HasKey(e => e.ConfigId);
+            });
+
+            modelBuilder.Entity<BulkQuestionExcel>(entity =>
+            {
+                entity.HasKey(e => e.BulkQuestionId);
+                entity.HasIndex(e => e.UploadBatchId);
             });
         }
     }

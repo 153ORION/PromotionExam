@@ -421,3 +421,175 @@ export interface AiAutoMarkQuestionResult {
   totalWrittenScore?: number;
   message: string;
 }
+
+// ---- Question Bank Excel upload (Bulk_Questions_Excel) ----
+
+export type BulkQuestionType = 'MCQ' | 'Descriptive';
+export type BulkQuestionPart = '1' | '2' | '3';
+export const BULK_QUESTION_TYPES: BulkQuestionType[] = ['MCQ', 'Descriptive'];
+export const BULK_QUESTION_PARTS: BulkQuestionPart[] = ['1', '2', '3'];
+
+export interface BulkQuestionRow {
+  bulkQuestionId?: number;
+  uploadBatchId?: string;
+  fileName?: string;
+  excelRowNo: number;
+  grade?: string;
+  department?: string;
+  jobConcentration?: string;
+  location?: string;
+  // Saved rows: Sys_Lookup ids set in Lookup Mapping.
+  departmentId?: number;
+  gradeId?: number;
+  locationId?: number;
+  concentrationId?: number;
+  questionPart?: string;
+  questionType?: string;
+  question: string;
+  option1?: string;
+  option2?: string;
+  option3?: string;
+  option4?: string;
+  rightAnswer?: string;
+  isMcq: boolean;
+  isTypeDisputed: boolean;
+  isPartDisputed: boolean;
+  originalQuestionType?: string;
+  originalQuestionPart?: string;
+  hasError: boolean;
+  // Saved rows: stored validation errors.
+  errors?: string[];
+  duplicateOfRowNo?: number;
+  duplicateOfBulkQuestionId?: number;
+  duplicateOfFileName?: string;
+  duplicateOfUploadedAt?: string;
+  isDuplicate: boolean;
+  uploadedAt?: string;
+}
+
+export interface BulkQuestionIssue {
+  rowNo?: number;
+  column?: string;
+  severity: 'Error' | 'Warning';
+  code: string;
+  message: string;
+}
+
+export interface BulkQuestionValidationResult {
+  fileName: string;
+  sheetName?: string;
+  availableSheets: string[];
+  headerRowNo?: number;
+  totalRows: number;
+  skippedEmptyRows: number;
+  cleanedCellCount: number;
+  errorCount: number;
+  errorRowCount: number;
+  warningCount: number;
+  mcqCount: number;
+  descriptiveCount: number;
+  disputedTypeCount: number;
+  disputedPartCount: number;
+  duplicateCount: number;
+  hasFileError: boolean;
+  missingOptionalColumns: string[];
+  issues: BulkQuestionIssue[];
+  rows: BulkQuestionRow[];
+}
+
+export interface BulkQuestionUploadResult {
+  uploadBatchId: string;
+  fileName: string;
+  savedRows: number;
+  skippedDuplicateRows: number;
+  keptDuplicateRows: number;
+  errorRows: number;
+  disputedRows: number;
+  message: string;
+}
+
+export interface BulkQuestionBatch {
+  uploadBatchId: string;
+  fileName: string;
+  sheetName?: string;
+  uploadedAt: string;
+  uploadedBy?: number;
+  uploadedByName?: string;
+  rowCount: number;
+  mcqCount: number;
+  disputedCount: number;
+  errorCount: number;
+  duplicateCount: number;
+}
+
+export interface BulkQuestionRowPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: BulkQuestionRow[];
+}
+
+export interface DisputedValueCount {
+  value: string; // '' = empty cell
+  count: number;
+}
+
+export interface DisputedSummary {
+  totalToFix: number;
+  errorRows: number;
+  totalDisputed: number;
+  typeDisputed: number;
+  partDisputed: number;
+  typeValues: DisputedValueCount[];
+  partValues: DisputedValueCount[];
+}
+
+// ---- Lookup Mapping ----
+
+export type LookupMappingField = 'department' | 'grade' | 'location' | 'concentration';
+
+export interface LookupMappingOption {
+  lookupId: number;
+  lookupText: string;
+  lookupTextShort?: string;
+  isActive: boolean;
+}
+
+export interface LookupMappingTarget {
+  lookupId?: number; // undefined/null = not mapped
+  lookupText?: string;
+  rowCount: number;
+}
+
+export interface LookupMappingValue {
+  value: string;
+  rowCount: number;
+  unmappedRowCount: number;
+  targets: LookupMappingTarget[];
+  suggestedLookupId?: number;
+}
+
+export interface LookupMappingFieldData {
+  field: LookupMappingField;
+  label: string;
+  lookupType: string;
+  lookupTypeFound: boolean;
+  options: LookupMappingOption[];
+  values: LookupMappingValue[];
+  emptyRowCount: number;
+}
+
+export interface UpdateBulkQuestionResult {
+  row: BulkQuestionRow;
+  issues: BulkQuestionIssue[];
+  isFixed: boolean;
+  message: string;
+}
+
+export interface ResolveDisputesResult {
+  updated: number;
+  failed: { bulkQuestionId: number; excelRowNo: number; fileName: string; reason: string }[];
+  // Updated rows that now repeat a saved question (saved and marked as duplicates).
+  duplicates: { bulkQuestionId: number; excelRowNo: number; fileName: string; reason: string }[];
+  message: string;
+}

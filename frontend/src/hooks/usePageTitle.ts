@@ -18,6 +18,10 @@ const ROUTE_TITLES: Array<{ path: string; title: string }> = [
 
   // Question Bank
   { path: '/question-bank/generate-rubrics', title: 'Generate Rubrics' },
+  { path: '/question-bank/upload', title: 'Upload Question Bank Excel' },
+  { path: '/question-bank/fix', title: 'Fix Questions' },
+  { path: '/question-bank/mapping', title: 'Lookup Mapping' },
+  { path: '/question-bank/uploaded', title: 'Questions' },
   { path: '/question-bank/narrative', title: 'Narrative Questions' },
   { path: '/question-bank/mcq', title: 'MCQ Questions' },
   { path: '/question-bank/sets', title: 'Question Sets' },

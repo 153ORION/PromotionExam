@@ -67,7 +67,7 @@ Publishing*** (untick), then `iisreset`.
 Verify from any machine that can reach the server:
 
 ```bash
-curl -i -X PUT -H "Content-Type: application/json" -d "{}" http://192.168.1.34:81/api/system/config
+curl -i -X PUT -H "Content-Type: application/json" -d "{}" http://localhost:83/api/system/config
 ```
 
 Expect `401 Unauthorized` with `WWW-Authenticate: Bearer` (the request reached
@@ -95,7 +95,7 @@ Edit `web.config` inside the deployed folder (and keep `public/web.config` in
 the repo in sync) — both reverse-proxy rules currently target:
 
 ```
-http://192.168.1.34:81
+http://localhost:83
 ```
 
 Change the host/port in the two `<action type="Rewrite" ...>` URLs if your
@@ -121,7 +121,7 @@ backend lives elsewhere.
   server's outbound path and confirm the deployed build is current.
 - **500.52 / 500.53 on `/api`** — ARR server proxy not enabled (step 2) or
   backend unreachable from the IIS server. Test with
-  `Invoke-WebRequest http://192.168.1.34:81/api/...` on the server itself.
+  `Invoke-WebRequest http://localhost:83/api/...` on the server itself.
 - **404 on refresh of deep links** — URL Rewrite module not installed, or the
   `web.config` didn't make it into the deployed folder.
 - **Blank page / broken assets under a sub-path** — see the *Sub-path hosting*
