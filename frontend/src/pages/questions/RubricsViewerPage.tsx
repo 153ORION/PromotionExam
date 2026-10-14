@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +30,9 @@ const RubricStatusBadge: React.FC<{ status?: string }> = ({ status }) => {
 };
 
 export const RubricsViewerPage: React.FC = () => {
+  const { user } = useAuth();
+  // Examiners can view rubrics, but Generate Rubrics is an admin-only route.
+  const canGenerate = user?.isAdmin === true || user?.isSuperAdmin === true;
   const [sets, setSets] = useState<QuestionSet[]>([]);
   const [selectedSetId, setSelectedSetId] = useState<number>(0);
   const [questions, setQuestions] = useState<RubricViewerQuestion[]>([]);
@@ -94,10 +99,20 @@ export const RubricsViewerPage: React.FC = () => {
             Review narrative questions with reference model answers, generated AI rubrics and marks breakdown.
           </p>
         </div>
-        <Button onClick={handlePrint} disabled={selectedSetId === 0} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1 disabled:opacity-50">
-          <Printer className="h-4 w-4" />
-          <span>Print / Export PDF</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {canGenerate && (
+            <Link to="/question-bank/generate-rubrics">
+              <Button variant="outline" className="flex items-center space-x-1">
+                <Sparkles className="h-4 w-4 text-emerald-600" />
+                <span>Generate Rubrics</span>
+              </Button>
+            </Link>
+          )}
+          <Button onClick={handlePrint} disabled={selectedSetId === 0} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1 disabled:opacity-50">
+            <Printer className="h-4 w-4" />
+            <span>Print / Export PDF</span>
+          </Button>
+        </div>
       </div>
 
       {/* Control Bar */}

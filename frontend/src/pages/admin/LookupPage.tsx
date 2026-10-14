@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '@/services/api';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Plus, CheckCircle, XCircle, Filter } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Filter, Settings } from 'lucide-react';
 import { LookupItem, LookupType } from '@/types';
 
 export const LookupPage: React.FC = () => {
@@ -116,10 +117,18 @@ export const LookupPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900">Lookup Items</h2>
           <p className="text-sm text-slate-500">Configure dropdown values for Companies, Departments, Locations, Grades, and Years.</p>
         </div>
-        <Button onClick={handleOpenAdd} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1">
-          <Plus className="h-4 w-4" />
-          <span>Add Lookup Item</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link to="/admin/lookup-types">
+            <Button variant="outline" className="flex items-center space-x-1">
+              <Settings className="h-4 w-4" />
+              <span>Lookup Types</span>
+            </Button>
+          </Link>
+          <Button onClick={handleOpenAdd} className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-1">
+            <Plus className="h-4 w-4" />
+            <span>Add Lookup Item</span>
+          </Button>
+        </div>
       </div>
 
       {/* Filter by Type */}

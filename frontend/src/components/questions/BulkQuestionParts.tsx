@@ -24,7 +24,7 @@ export const Pager: React.FC<{ page: number; pageCount: number; total: number; o
   </div>
 );
 
-// Type and Part badges; a disputed value is shown in amber with the value from the file.
+// Type and Part; a disputed value is shown as an amber badge with the value from the file.
 export const TypePartBadges: React.FC<{ row: BulkQuestionRow }> = ({ row }) => (
   <div className="flex flex-col gap-1">
     {row.isTypeDisputed ? (
@@ -32,7 +32,7 @@ export const TypePartBadges: React.FC<{ row: BulkQuestionRow }> = ({ row }) => (
         Type: {row.questionType || '(empty)'}
       </Badge>
     ) : (
-      <Badge variant={row.isMcq ? 'default' : 'secondary'} className="w-fit">{row.questionType}</Badge>
+      <span className="text-xs font-semibold text-slate-800">{row.questionType}</span>
     )}
     {row.isPartDisputed ? (
       <Badge variant="warning" className="w-fit" title="Disputed: Part must be 1, 2 or 3">

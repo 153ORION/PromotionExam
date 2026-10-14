@@ -25,7 +25,6 @@ import {
   FileText,
   Activity,
   Building2,
-  Sparkles,
   ListChecks,
   Database
 } from 'lucide-react';
@@ -109,7 +108,6 @@ export const Sidebar: React.FC = () => {
             <div className="mt-1 space-y-1 pl-5">
               <SidebarItem to="/viewer/search-examinee" icon={<Search className="h-4 w-4" />} label="Examinee Viewer" />
               <SidebarItem to="/question-bank/viewer" icon={<FileQuestion className="h-4 w-4" />} label="Question Viewer" />
-              <SidebarItem to="/viewer/rubrics" icon={<ListChecks className="h-4 w-4" />} label="Rubrics Viewer" />
             </div>
           )}
         </div>
@@ -132,16 +130,21 @@ export const Sidebar: React.FC = () => {
 
           {openSections.qbank && (
             <div className="mt-1 space-y-1 pl-5">
-              <SidebarItem to="/question-bank/sets" icon={<Layers className="h-4 w-4" />} label="Question Sets" />
               <SidebarItem to="/question-bank/mcq" icon={<ListPlus className="h-4 w-4" />} label="MCQ Questions" />
               <SidebarItem to="/question-bank/narrative" icon={<Edit3 className="h-4 w-4" />} label="Narrative Questions" />
-              <SidebarItem to="/question-bank/generate-rubrics" icon={<Sparkles className="h-4 w-4 text-emerald-400" />} label="Generate Rubrics" />
-              {/* Upload Excel, Fix Questions and Lookup Mapping are opened from buttons on this page */}
+              {/* Generate Rubrics is opened from a button on this page */}
+              <SidebarItem
+                to="/viewer/rubrics"
+                icon={<ListChecks className="h-4 w-4" />}
+                label="Rubrics Viewer"
+                alsoActiveOn={['/question-bank/generate-rubrics']}
+              />
+              {/* Upload Excel, Fix Questions, Lookup Mapping and Question Sets are opened from buttons on this page */}
               <SidebarItem
                 to="/question-bank/uploaded"
                 icon={<Database className="h-4 w-4" />}
                 label="Questions"
-                alsoActiveOn={['/question-bank/upload', '/question-bank/fix', '/question-bank/mapping']}
+                alsoActiveOn={['/question-bank/upload', '/question-bank/fix', '/question-bank/mapping', '/question-bank/sets']}
               />
             </div>
           )}
@@ -218,8 +221,8 @@ export const Sidebar: React.FC = () => {
 
             {openSections.admin && (
               <div className="mt-1 space-y-1 pl-5">
-                <SidebarItem to="/admin/lookup-types" icon={<Settings className="h-4 w-4" />} label="Lookup Types" />
-                <SidebarItem to="/admin/lookups" icon={<Layers className="h-4 w-4" />} label="Lookups" />
+                {/* Lookup Types is opened from a button on the Lookups page */}
+                <SidebarItem to="/admin/lookups" icon={<Layers className="h-4 w-4" />} label="Lookups" alsoActiveOn={['/admin/lookup-types']} />
                 <SidebarItem to="/admin/users" icon={<ShieldCheck className="h-4 w-4" />} label="User Management" />
                 <SidebarItem to="/admin/activity-logs" icon={<Activity className="h-4 w-4 text-blue-400" />} label="User Activity Audit" />
                 <SidebarItem to="/admin/system-config" icon={<Building2 className="h-4 w-4 text-emerald-400" />} label="System Settings" />

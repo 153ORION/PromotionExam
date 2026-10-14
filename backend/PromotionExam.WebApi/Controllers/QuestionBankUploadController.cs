@@ -26,6 +26,8 @@ namespace PromotionExam.WebApi.Controllers
     // A row that repeats the same question for the same part/grade/department/concentration/location
     // (in the file or in an earlier upload) is a duplicate: the uploader chooses to skip or keep it.
     // A row whose Type is not MCQ/Descriptive or whose Part is not 1/2/3 is saved as disputed.
+    // A row's Concentration gets the id of the Sys_Lookup Concentration item with the same name;
+    // a name not in Sys_Lookup yet is added there.
     //
     // Fix Questions: lists disputed and error rows; sets Type/Part in bulk, edits a whole row
     // (re-checked with the upload rules) or deletes rows.
@@ -36,6 +38,8 @@ namespace PromotionExam.WebApi.Controllers
     {
         private const long MaxFileBytes = 10 * 1024 * 1024;
         private static readonly string[] AllowedExtensions = { ".xlsx", ".xls" };
+        // Sys_LookupType id of Concentration.
+        private const int ConcentrationLookupTypeId = 7;
 
         private readonly ApplicationDbContext _context;
         private readonly IUserActivityService _activityService;
@@ -150,12 +154,22 @@ namespace PromotionExam.WebApi.Controllers
                 };
             }).ToList();
 
-            // Department/Grade/Location/Concentration text already mapped in Lookup Mapping gets its id.
-            await BulkQuestionLookupField.ApplyKnownMappingsAsync(_context, entities);
+            // The new Concentration lookups and the rows are saved in one transaction: either all or none.
+            int createdConcentrations;
+            await using (var transaction = await _context.Database.BeginTransactionAsync())
+            {
+                // Department/Grade/Location/Concentration text already mapped in Lookup Mapping gets its id.
+                await BulkQuestionLookupField.ApplyKnownMappingsAsync(_context, entities);
 
-            // SaveChanges runs all inserts in a single transaction: either every row is saved or none.
-            _context.BulkQuestionsExcel.AddRange(entities);
-            await _context.SaveChangesAsync();
+                // Concentration text gets the id of the Sys_Lookup Concentration item with the same name,
+                // or of a new item when there is none.
+                createdConcentrations = await BulkQuestionLookupField.Concentration.MatchOrCreateLookupsAsync(
+                    _context, entities, ConcentrationLookupTypeId, userId > 0 ? userId : null);
+
+                _context.BulkQuestionsExcel.AddRange(entities);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
 
             int errorRows = entities.Count(e => e.HasError);
             int disputed = entities.Count(e => !e.HasError && (e.IsTypeDisputed || e.IsPartDisputed));
@@ -166,7 +180,7 @@ namespace PromotionExam.WebApi.Controllers
                 JsonSerializer.Serialize(new
                 {
                     uploadBatchId = batchId, result.FileName, result.SheetName, saved = entities.Count,
-                    skippedDuplicates, keptDuplicates = keptDuplicates.Count, errorRows, disputed
+                    skippedDuplicates, keptDuplicates = keptDuplicates.Count, errorRows, disputed, createdConcentrations
                 }));
 
             var parts = new List<string> { $"{entities.Count} question(s) saved from '{result.FileName}'" };
@@ -174,6 +188,7 @@ namespace PromotionExam.WebApi.Controllers
             if (keptDuplicates.Count > 0) parts.Add($"{keptDuplicates.Count} duplicate(s) kept");
             if (errorRows > 0) parts.Add($"{errorRows} row(s) with errors");
             if (disputed > 0) parts.Add($"{disputed} disputed question(s)");
+            if (createdConcentrations > 0) parts.Add($"{createdConcentrations} new Concentration lookup(s) added");
             var message = string.Join("; ", parts) + ".";
             if (errorRows + disputed > 0) message += " Correct them in Fix Questions.";
 

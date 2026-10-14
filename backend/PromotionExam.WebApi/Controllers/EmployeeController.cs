@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PromotionExam.Application.Common.Interfaces;
@@ -10,6 +8,7 @@ namespace PromotionExam.WebApi.Controllers
     [AllowAnonymous]
     [ApiController]
     [Route("Api/[controller]/[action]")]
+
     public class EmployeeController : ControllerBase
     {
         private readonly ICandidateExamService _candidateExamService;

@@ -113,5 +113,63 @@ namespace PromotionExam.Infrastructure.Services
                 }
             }
         }
+
+        // Text equal to a Sys_Lookup item of typeId (ignoring case and extra spaces) gets that item's id,
+        // replacing a mapping reused from earlier uploads. Text that still has no id becomes a new active
+        // Sys_Lookup item of typeId. Returns the number of items created.
+        // The new items are saved here, so call it inside a transaction together with saving the rows.
+        public async Task<int> MatchOrCreateLookupsAsync(ApplicationDbContext context, IReadOnlyCollection<BulkQuestionExcel> rows, int typeId, long? userId)
+        {
+            var withText = rows.Where(r => !string.IsNullOrWhiteSpace(GetText(r))).ToList();
+            if (withText.Count == 0) return 0;
+
+            // Without the lookup type there is nothing to match or create; the rows stay as they are.
+            if (!await context.SysLookupTypes.AnyAsync(t => t.TypeId == typeId)) return 0;
+
+            var lookups = await context.SysLookups
+                .Where(l => l.TypeId == typeId)
+                .Select(l => new { l.LookupId, l.LookupText, l.IsActive, l.Serial })
+                .ToListAsync();
+
+            // Several items with the same text: the active one with the lowest id is used.
+            var idByText = lookups
+                .OrderByDescending(l => l.IsActive == true).ThenBy(l => l.LookupId)
+                .GroupBy(l => NormalizeText(l.LookupText), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().LookupId, StringComparer.OrdinalIgnoreCase);
+
+            var created = new Dictionary<string, SysLookup>(StringComparer.OrdinalIgnoreCase);
+            var serial = lookups.Max(l => l.Serial) ?? 0;
+            foreach (var row in withText)
+            {
+                var text = NormalizeText(GetText(row)!);
+                if (idByText.TryGetValue(text, out var id))
+                    SetId(row, id);
+                else if (GetId(row) == null && !created.ContainsKey(text))
+                    created[text] = new SysLookup
+                    {
+                        TypeId = typeId,
+                        LookupText = text,
+                        Serial = ++serial,
+                        IsActive = true,
+                        EntryBy = userId,
+                        EntryDate = DateTime.Now
+                    };
+            }
+            if (created.Count == 0) return 0;
+
+            context.SysLookups.AddRange(created.Values);
+            await context.SaveChangesAsync();
+
+            foreach (var row in withText)
+            {
+                if (GetId(row) == null && created.TryGetValue(NormalizeText(GetText(row)!), out var item))
+                    SetId(row, item.LookupId);
+            }
+            return created.Count;
+        }
+
+        // Trims and collapses runs of spaces, so " Solar  Energy" matches "Solar Energy".
+        private static string NormalizeText(string text) =>
+            string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 }

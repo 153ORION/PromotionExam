@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Link2, Loader2, RefreshCw, Search, UploadCloud, X } from 'lucide-react';
+import { AlertTriangle, Layers, Link2, Loader2, RefreshCw, Search, UploadCloud, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   BULK_QUESTION_TYPES, BulkQuestionRow, BulkQuestionRowPage, LookupMappingField, LookupMappingFieldData,
@@ -22,6 +22,12 @@ const FILTERS: { key: LookupMappingField; param: string; label: string; textKey:
   { key: 'location', param: 'locationId', label: 'Location', textKey: 'location', idKey: 'locationId' },
   { key: 'grade', param: 'gradeId', label: 'Grade', textKey: 'grade', idKey: 'gradeId' },
   { key: 'concentration', param: 'concentrationId', label: 'Concentration', textKey: 'jobConcentration', idKey: 'concentrationId' },
+];
+
+// The lookup fields are shown in two table columns: Department · Location and Grade · Concentration.
+const FIELD_COLUMNS = [
+  FILTERS.filter((f) => f.key === 'department' || f.key === 'location'),
+  FILTERS.filter((f) => f.key === 'grade' || f.key === 'concentration'),
 ];
 
 const selectClass = 'h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm';
@@ -108,6 +114,11 @@ export const UploadedQuestionsPage: React.FC = () => {
           <Link to="/question-bank/mapping">
             <Button variant="outline">
               <Link2 className="h-4 w-4 mr-1.5" /> Mapping
+            </Button>
+          </Link>
+          <Link to="/question-bank/sets">
+            <Button variant="outline">
+              <Layers className="h-4 w-4 mr-1.5" /> Sets
             </Button>
           </Link>
         </div>
@@ -200,45 +211,46 @@ export const UploadedQuestionsPage: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Upload / Row</TableHead>
                   <TableHead>Type / Part</TableHead>
-                  <TableHead className="min-w-[240px]">Department · Location · Grade · Concentration</TableHead>
+                  {FIELD_COLUMNS.map((fields, i) => (
+                    <TableHead key={i} className="min-w-[180px]">{fields.map((f) => f.label).join(' · ')}</TableHead>
+                  ))}
                   <TableHead>Question</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows?.items.map((row) => (
                   <TableRow key={row.bulkQuestionId} className={cn(row.hasError && 'bg-rose-50/40')}>
-                    <TableCell className="align-top text-xs text-slate-600 min-w-[140px]">
-                      <div className="font-medium text-slate-800 break-words">{row.fileName}</div>
-                      <div>Row {row.excelRowNo}</div>
+                    <TableCell className="align-top">
+                      <TypePartBadges row={row} />
                       {row.hasError && (
                         <Link to="/question-bank/fix?problem=Error" className="mt-1 inline-block rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 hover:underline">ERROR</Link>
                       )}
                       {row.isDuplicate && <div className="text-[10px] text-violet-700 mt-1">duplicate</div>}
                     </TableCell>
-                    <TableCell className="align-top"><TypePartBadges row={row} /></TableCell>
-                    <TableCell className="align-top text-xs">
-                      <dl className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1">
-                        {FILTERS.map((f) => {
-                          const text = row[f.textKey] as string | undefined;
-                          const id = row[f.idKey] as number | undefined;
-                          return (
-                            <React.Fragment key={f.key}>
-                              <dt className="text-slate-400">{f.label}</dt>
-                              <dd className="min-w-0">
-                                <span className="text-slate-800">{text || '—'}</span>
-                                {id != null ? (
-                                  <span className="block text-emerald-700">→ {names[f.key]?.get(id) ?? `Lookup #${id}`} <span className="text-slate-400">#{id}</span></span>
-                                ) : text ? (
-                                  <span className="block text-amber-700">not mapped</span>
-                                ) : null}
-                              </dd>
-                            </React.Fragment>
-                          );
-                        })}
-                      </dl>
-                    </TableCell>
+                    {FIELD_COLUMNS.map((fields, i) => (
+                      <TableCell key={i} className="align-top text-xs">
+                        <dl className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1">
+                          {fields.map((f) => {
+                            const text = row[f.textKey] as string | undefined;
+                            const id = row[f.idKey] as number | undefined;
+                            return (
+                              <React.Fragment key={f.key}>
+                                <dt className="text-slate-400">{f.label}</dt>
+                                <dd className="min-w-0">
+                                  <span className="text-slate-800">{text || '—'}</span>
+                                  {id != null ? (
+                                    <span className="block text-emerald-700">→ {names[f.key]?.get(id) ?? `Lookup #${id}`} <span className="text-slate-400">#{id}</span></span>
+                                  ) : text ? (
+                                    <span className="text-amber-700"> (not mapped)</span>
+                                  ) : null}
+                                </dd>
+                              </React.Fragment>
+                            );
+                          })}
+                        </dl>
+                      </TableCell>
+                    ))}
                     <QuestionCell row={row}>
                       {row.errors && row.errors.length > 0 && (
                         <div className="mt-2 space-y-0.5 text-xs text-rose-700">

@@ -27,6 +27,10 @@ const SystemConfigContext = createContext<SystemConfigContextType | undefined>(u
 
 const LOCAL_STORAGE_KEY = 'pe_system_config';
 
+// Logo bundled with the frontend (public/orion_logo.png). Shown whenever the uploaded
+// logo is not configured or fails to load from the API host.
+export const DEFAULT_LOGO_URL = `${import.meta.env.BASE_URL}orion_logo.png`;
+
 export const SystemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [config, setConfig] = useState<SystemConfig | null>(() => {
     try {
@@ -41,15 +45,22 @@ export const SystemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const applyBranding = (cfg: SystemConfig | null) => {
     if (!cfg) return;
 
-    // Dynamically update favicon if logo exists
-    if (cfg.logoUrl) {
-      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.head.appendChild(link);
-      }
-      link.href = resolveApiUrl(cfg.logoUrl) ?? cfg.logoUrl;
+    // Swap the favicon to the uploaded logo, but only once it actually loads —
+    // otherwise keep the bundled logo set in index.html.
+    const logoSrc = resolveApiUrl(cfg.logoUrl);
+    if (logoSrc) {
+      const probe = new Image();
+      probe.onload = () => {
+        let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.head.appendChild(link);
+        }
+        link.removeAttribute('type');
+        link.href = logoSrc;
+      };
+      probe.src = logoSrc;
     }
   };
 
