@@ -22,8 +22,6 @@ const ROUTE_TITLES: Array<{ path: string; title: string }> = [
   { path: '/question-bank/fix', title: 'Fix Questions' },
   { path: '/question-bank/mapping', title: 'Lookup Mapping' },
   { path: '/question-bank/uploaded', title: 'Questions' },
-  { path: '/question-bank/narrative', title: 'Narrative Questions' },
-  { path: '/question-bank/mcq', title: 'MCQ Questions' },
   { path: '/question-bank/sets', title: 'Question Sets' },
   { path: '/question-bank/viewer', title: 'Question Viewer' },
 

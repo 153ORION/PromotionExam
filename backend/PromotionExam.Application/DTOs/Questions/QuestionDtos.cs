@@ -31,6 +31,32 @@ namespace PromotionExam.Application.DTOs.Questions
         public int? ConcentrationId { get; set; }
     }
 
+    // Question Sets > Sync: bank questions (Bulk_Questions_Excel) that match a set but are not in it yet.
+    public class SetSyncCandidatesDto
+    {
+        public int SetId { get; set; }
+        public string SetName { get; set; } = string.Empty;
+        // Matching questions left out because they still need fixing (errors or disputed Type/Part).
+        public int NeedsFixingCount { get; set; }
+        public List<BulkQuestionRowDto> Questions { get; set; } = new();
+    }
+
+    public class SetSyncRequestDto
+    {
+        public List<long> BulkQuestionIds { get; set; } = new();
+        // Marks given to each synced question of that type (Question_Bank.Marks).
+        public decimal McqMarks { get; set; }
+        public decimal DescriptiveMarks { get; set; }
+    }
+
+    public class SetSyncResultDto
+    {
+        public int Synced { get; set; }
+        // Selected questions not added: already in the set, no longer matching, or repeating another selected question.
+        public int Skipped { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
     public class QuestionBankDto
     {
         public int QuestionId { get; set; }

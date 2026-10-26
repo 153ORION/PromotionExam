@@ -355,10 +355,10 @@ export const QuestionRubricGeneratePage: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2">
             <Link
-              to="/question-bank/narrative"
+              to="/viewer/rubrics"
               className="text-slate-400 hover:text-slate-700 transition-colors inline-flex items-center text-xs mb-1"
             >
-              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to Narrative Questions
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to Rubrics Viewer
             </Link>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
@@ -371,9 +371,9 @@ export const QuestionRubricGeneratePage: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-2">
-          <Link to="/question-bank/narrative">
+          <Link to="/question-bank/uploaded">
             <Button variant="outline" size="sm" className="text-xs">
-              <FileText className="h-3.5 w-3.5 mr-1 text-slate-600" /> Narrative Questions
+              <FileText className="h-3.5 w-3.5 mr-1 text-slate-600" /> Questions
             </Button>
           </Link>
           <Link to="/question-bank/sets">
@@ -519,8 +519,8 @@ export const QuestionRubricGeneratePage: React.FC = () => {
             <p className="text-xs text-amber-800">
               The AI Rubric generator requires a reference model answer to extract evaluation criteria and marking points. 
               Questions without model answers will be skipped during rubric generation. You can add model answers in the{' '}
-              <Link to="/question-bank/narrative" className="font-semibold underline hover:text-amber-950">
-                Narrative Questions
+              <Link to="/question-bank/uploaded" className="font-semibold underline hover:text-amber-950">
+                Questions
               </Link>.
             </p>
           </div>
@@ -725,9 +725,9 @@ export const QuestionRubricGeneratePage: React.FC = () => {
                 : 'No narrative questions match the selected filter criteria.'}
             </p>
             {questions.length === 0 && (
-              <Link to="/question-bank/narrative" className="inline-block mt-4">
+              <Link to="/question-bank/uploaded" className="inline-block mt-4">
                 <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                  Create Narrative Question
+                  Create Question
                 </Button>
               </Link>
             )}
@@ -868,8 +868,8 @@ export const QuestionRubricGeneratePage: React.FC = () => {
                     ) : (
                       <div className="mt-1 rounded-md bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800 flex items-center justify-between">
                         <span>No model answer recorded for this question.</span>
-                        <Link to="/question-bank/narrative" className="font-semibold underline hover:text-rose-950">
-                          Edit in Narrative Questions
+                        <Link to="/question-bank/uploaded" className="font-semibold underline hover:text-rose-950">
+                          Edit in Questions
                         </Link>
                       </div>
                     )}

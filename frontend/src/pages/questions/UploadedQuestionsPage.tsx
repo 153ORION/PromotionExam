@@ -5,12 +5,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Layers, Link2, Loader2, RefreshCw, Search, UploadCloud, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Layers, Link2, Loader2, Plus, RefreshCw, Search, UploadCloud, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   BULK_QUESTION_TYPES, BulkQuestionRow, BulkQuestionRowPage, LookupMappingField, LookupMappingFieldData,
 } from '@/types';
 import { Pager, QuestionCell, TypePartBadges } from '@/components/questions/BulkQuestionParts';
+import { CreateQuestionDialog } from '@/components/questions/CreateQuestionDialog';
 import { errorMessage } from '@/lib/bulkQuestionUtils';
 
 const PAGE_SIZE = 25;
@@ -32,9 +33,9 @@ const FIELD_COLUMNS = [
 
 const selectClass = 'h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm';
 
-// Question Bank > Questions: every question saved from Excel uploads (Bulk_Questions_Excel),
-// filtered by the Department / Location / Grade / Concentration ids set in Lookup Mapping.
-// Filters live in the URL so a filtered list can be bookmarked or shared.
+// Question Bank > Questions: every question saved from Excel uploads or typed in by hand
+// (Bulk_Questions_Excel), filtered by the Department / Location / Grade / Concentration ids set in
+// Lookup Mapping. Filters live in the URL so a filtered list can be bookmarked or shared.
 export const UploadedQuestionsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [lookups, setLookups] = useState<Record<string, LookupMappingFieldData> | null>(null);
@@ -43,6 +44,8 @@ export const UploadedQuestionsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [reloadKey, setReloadKey] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const filterValue = (param: string) => searchParams.get(param) ?? '';
@@ -95,12 +98,12 @@ export const UploadedQuestionsPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Questions</h1>
-          {/* <p className="text-sm text-slate-500 mt-1">
-            All questions saved from Question Bank Excel uploads. Filter them by the Sys_Lookup items set in Mapping.
-          </p> */}
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Questions</h1> 
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4 mr-1.5" /> New question
+          </Button>
           <Link to="/question-bank/upload">
             <Button>
               <UploadCloud className="h-4 w-4 mr-1.5" /> Upload
@@ -124,22 +127,17 @@ export const UploadedQuestionsPage: React.FC = () => {
         </div>
       </div>
 
+      {notice && (
+        <div className="p-3 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm flex items-start gap-2">
+          <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" /> <span className="flex-1">{notice}</span>
+          <button onClick={() => setNotice(null)} aria-label="Dismiss" className="text-emerald-700 hover:text-emerald-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-               <CardTitle>Filters</CardTitle>
-              <CardDescription>“Not mapped” lists the questions that have no id for that field yet.</CardDescription>
-            </div>
-             {/* <div className="flex gap-2">
-              {activeFilters > 0 && (
-                <Button variant="ghost" size="sm" onClick={clearAll}><X className="h-3.5 w-3.5 mr-1" /> Clear filters</Button>
-              )}
-              <Button variant="outline" size="sm" onClick={() => setReloadKey((k) => k + 1)} disabled={loading}>
-                <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', loading && 'animate-spin')} /> Refresh
-              </Button>
-            </div>  */}
-          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -187,6 +185,80 @@ export const UploadedQuestionsPage: React.FC = () => {
               <Button type="submit" variant="outline">Search</Button>
             </form>
           </div>
+
+          <div className="rounded-md mt-8 border border-slate-200 overflow-x-auto relative min-h-[120px]">
+            {loading && (
+              <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+                <Loader2 className="h-6 w-6 text-blue-500 animate-spin" />
+              </div>
+            )}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type / Part</TableHead>
+                  {FIELD_COLUMNS.map((fields, i) => (
+                    <TableHead key={i} className="min-w-[180px]">{fields.map((f) => f.label).join(' · ')}</TableHead>
+                  ))}
+                  <TableHead>Question</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows?.items.map((row) => (
+                  <TableRow key={row.bulkQuestionId} className={cn(row.hasError && 'bg-rose-50/40')}>
+                    <TableCell className="align-top">
+                      <TypePartBadges row={row} />
+                      {row.hasError && (
+                        <Link to="/question-bank/fix?problem=Error" className="mt-1 inline-block rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 hover:underline">ERROR</Link>
+                      )}
+                      {row.isDuplicate && <div className="text-[10px] text-violet-700 mt-1">duplicate</div>}
+                    </TableCell>
+                    {FIELD_COLUMNS.map((fields, i) => (
+                      <TableCell key={i} className="align-top text-xs">
+                        <dl className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1">
+                          {fields.map((f) => {
+                            const text = row[f.textKey] as string | undefined;
+                            const id = row[f.idKey] as number | undefined;
+                            return (
+                              <React.Fragment key={f.key}>
+                                <dt className="text-slate-400">{f.label}</dt>
+                                <dd className="min-w-0">
+                                  <span className="text-slate-800">{text || '—'}</span>
+                                  {id != null ? (
+                                    <span className="block text-emerald-700">→ {names[f.key]?.get(id) ?? `Lookup #${id}`} <span className="text-slate-400">#{id}</span></span>
+                                  ) : text ? (
+                                    <span className="text-amber-700"> (not mapped)</span>
+                                  ) : null}
+                                </dd>
+                              </React.Fragment>
+                            );
+                          })}
+                        </dl>
+                      </TableCell>
+                    ))}
+                    <QuestionCell row={row}>
+                      {row.errors && row.errors.length > 0 && (
+                        <div className="mt-2 space-y-0.5 text-xs text-rose-700">
+                          {row.errors.map((e, idx) => <div key={idx}>Error: {e}</div>)}
+                        </div>
+                      )}
+                    </QuestionCell>
+                  </TableRow>
+                ))}
+                {rows && rows.items.length === 0 && !loading && (
+                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-sm text-slate-500">No questions match these filters.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          {rows && (
+            <Pager
+              page={rows.page}
+              pageCount={Math.ceil(rows.total / rows.pageSize)}
+              total={rows.total}
+              onChange={(p) => updateParams({ page: p > 1 ? String(p) : '' }, false)}
+            />
+          )}
+
         </CardContent>
       </Card>
 
@@ -196,7 +268,15 @@ export const UploadedQuestionsPage: React.FC = () => {
         </div>
       )}
 
-      <Card>
+      {creating && (
+        <CreateQuestionDialog
+          lookups={lookups}
+          onClose={() => setCreating(false)}
+          onCreated={(res) => { setNotice(res.message); setReloadKey((k) => k + 1); }}
+        />
+      )}
+
+      {/* <Card>
         <CardHeader className="pb-3">
           <CardTitle>Questions</CardTitle>
           <CardDescription>{rows ? `${rows.total} question(s)${activeFilters ? ' match the filters' : ''}.` : 'Loading…'}</CardDescription>
@@ -275,7 +355,7 @@ export const UploadedQuestionsPage: React.FC = () => {
             />
           )}
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 };

@@ -31,6 +31,8 @@ namespace PromotionExam.WebApi.Controllers
     //
     // Fix Questions: lists disputed and error rows; sets Type/Part in bulk, edits a whole row
     // (re-checked with the upload rules) or deletes rows.
+    //
+    // Questions: a question can also be typed in by hand; it is saved under the "Manual entry" batch.
     [Authorize(Policy = "AdminOnly")]
     [ApiController]
     [Route("api/question-bank-upload")]
@@ -40,6 +42,10 @@ namespace PromotionExam.WebApi.Controllers
         private static readonly string[] AllowedExtensions = { ".xlsx", ".xls" };
         // Sys_LookupType id of Concentration.
         private const int ConcentrationLookupTypeId = 7;
+        // Questions typed in on Question Bank > Questions share one batch, numbered 1, 2, 3… as rows.
+        private static readonly Guid ManualEntryBatchId = new("00000000-0000-0000-0000-000000000001");
+        private const string ManualEntryFileName = "Manual entry";
+        private const string DeleteDuplicateHint = " Delete this row if it is not needed.";
 
         private readonly ApplicationDbContext _context;
         private readonly IUserActivityService _activityService;
@@ -287,6 +293,127 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(await PageAsync(ApplySearch(query, search), page, pageSize, orderByUpload: true));
         }
 
+        // Question Bank > Questions > New question: saves one question typed in by hand. It is checked
+        // with the same rules as an uploaded row but, unlike an upload, saved only when it is valid.
+        // A question that repeats a saved one (same part, grade, department, concentration and location)
+        // is refused with 409 unless allowDuplicate is set; then it is saved and marked IsDuplicate.
+        // Lookup text without a picked id gets the id that text is already mapped to, as in an upload.
+        [HttpPost("questions")]
+        public async Task<IActionResult> CreateQuestion([FromBody] CreateBulkQuestionDto dto, [FromQuery] bool allowDuplicate = false)
+        {
+            // Lookup ids picked from Sys_Lookup: the question takes the item's text.
+            var picked = new Dictionary<BulkQuestionLookupField, (int Id, string Text)>();
+            foreach (var (field, id) in new[]
+            {
+                (BulkQuestionLookupField.Department, dto.DepartmentId),
+                (BulkQuestionLookupField.Grade, dto.GradeId),
+                (BulkQuestionLookupField.Location, dto.LocationId),
+                (BulkQuestionLookupField.Concentration, dto.ConcentrationId),
+            })
+            {
+                if (id == null) continue;
+                var typeIds = _context.SysLookupTypes.Where(t => t.LookupType == field.LookupType).Select(t => t.TypeId);
+                var text = await _context.SysLookups
+                    .Where(l => l.LookupId == id.Value && typeIds.Contains(l.TypeId))
+                    .Select(l => l.LookupText)
+                    .FirstOrDefaultAsync();
+                if (text == null)
+                    return BadRequest(new { message = $"Lookup #{id} is not a {field.LookupType} item in Sys_Lookup." });
+                picked[field] = (id.Value, text);
+            }
+            string? TextOf(BulkQuestionLookupField field, string? typed) => picked.TryGetValue(field, out var p) ? p.Text : typed;
+
+            var rowNo = (await _context.BulkQuestionsExcel
+                .Where(q => q.UploadBatchId == ManualEntryBatchId)
+                .MaxAsync(q => (int?)q.ExcelRowNo) ?? 0) + 1;
+
+            var row = new BulkQuestionRowDto
+            {
+                ExcelRowNo = rowNo,
+                Grade = TextOf(BulkQuestionLookupField.Grade, dto.Grade),
+                Department = TextOf(BulkQuestionLookupField.Department, dto.Department),
+                JobConcentration = TextOf(BulkQuestionLookupField.Concentration, dto.JobConcentration),
+                Location = TextOf(BulkQuestionLookupField.Location, dto.Location),
+                QuestionPart = dto.QuestionPart,
+                QuestionType = dto.QuestionType,
+                Question = dto.Question ?? string.Empty,
+                Option1 = dto.Option1,
+                Option2 = dto.Option2,
+                Option3 = dto.Option3,
+                Option4 = dto.Option4,
+                RightAnswer = dto.RightAnswer
+            };
+            var issues = BulkQuestionExcelParser.ValidateQuestion(row);
+
+            // Type and Part must be valid: a typed-in question is never saved as disputed.
+            var problems = issues.Where(i => i.Severity == "Error").ToList();
+            if (row.IsTypeDisputed)
+                problems.Add(new BulkQuestionIssueDto { Column = "Type", Severity = "Error", Code = "DISPUTED_TYPE", Message = "Choose a Type: MCQ or Descriptive." });
+            if (row.IsPartDisputed)
+                problems.Add(new BulkQuestionIssueDto { Column = "Part", Severity = "Error", Code = "DISPUTED_PART", Message = "Choose a Part: 1, 2 or 3." });
+            if (problems.Count > 0)
+                return BadRequest(new { message = "The question was not saved. " + string.Join(" ", problems.Select(i => i.Message)), issues = problems });
+
+            var warnings = issues.Where(i => i.Severity != "Error").ToList();
+            var userId = GetCurrentUserId();
+            var entity = new BulkQuestionExcel
+            {
+                UploadBatchId = ManualEntryBatchId,
+                FileName = ManualEntryFileName,
+                ExcelRowNo = rowNo,
+                Grade = row.Grade,
+                Department = row.Department,
+                JobConcentration = row.JobConcentration,
+                Location = row.Location,
+                QuestionPart = row.QuestionPart,
+                QuestionType = row.QuestionType,
+                Question = row.Question,
+                Option1 = row.Option1,
+                Option2 = row.Option2,
+                Option3 = row.Option3,
+                Option4 = row.Option4,
+                RightAnswer = row.RightAnswer,
+                UploadedBy = userId > 0 ? userId : null,
+                UploadedAt = DateTime.Now
+            };
+
+            var duplicates = await MarkDuplicatesAsync(new[] { entity });
+            if (duplicates.TryGetValue(entity.BulkQuestionId, out var duplicateMessage))
+            {
+                if (!allowDuplicate)
+                    return Conflict(new { message = duplicateMessage, duplicate = true });
+                warnings.Add(new BulkQuestionIssueDto { Column = "Question", Severity = "Warning", Code = "DUPLICATE", Message = duplicateMessage + DeleteDuplicateHint });
+            }
+
+            // A new Concentration lookup and the question are saved together: either both or neither.
+            int createdConcentrations;
+            await using (var transaction = await _context.Database.BeginTransactionAsync())
+            {
+                await BulkQuestionLookupField.ApplyKnownMappingsAsync(_context, new[] { entity });
+                createdConcentrations = await BulkQuestionLookupField.Concentration.MatchOrCreateLookupsAsync(
+                    _context, new[] { entity }, ConcentrationLookupTypeId, userId > 0 ? userId : null);
+                // A picked id wins over the id found from the text.
+                foreach (var (field, p) in picked) field.SetId(entity, p.Id);
+
+                _context.BulkQuestionsExcel.Add(entity);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+
+            await LogAsync(userId, "BULK_QUESTION_CREATE",
+                $"Created question #{entity.BulkQuestionId} ({entity.QuestionType}, part {entity.QuestionPart}) by manual entry{(entity.IsDuplicate ? "; it repeats a saved question" : "")}.",
+                JsonSerializer.Serialize(new
+                {
+                    bulkQuestionId = entity.BulkQuestionId, entity.ExcelRowNo, entity.QuestionType, entity.QuestionPart,
+                    entity.IsDuplicate, createdConcentrations
+                }));
+
+            var message = $"Question saved ({entity.QuestionType}, Part {entity.QuestionPart}).";
+            if (entity.IsDuplicate) message += " It repeats a saved question and is marked as a duplicate.";
+            if (createdConcentrations > 0) message += $" New Concentration lookup '{entity.JobConcentration}' added.";
+            return Ok(new { message, row = ToRowDto(entity), issues = warnings });
+        }
+
         [HttpGet("batches/{batchId:guid}/rows")]
         public async Task<IActionResult> GetBatchRows(
             Guid batchId,
@@ -512,7 +639,7 @@ namespace PromotionExam.WebApi.Controllers
             {
                 issues.Add(new BulkQuestionIssueDto
                 {
-                    RowNo = row.ExcelRowNo, Column = "Question", Severity = "Warning", Code = "DUPLICATE", Message = duplicateMessage
+                    RowNo = row.ExcelRowNo, Column = "Question", Severity = "Warning", Code = "DUPLICATE", Message = duplicateMessage + DeleteDuplicateHint
                 });
             }
 
@@ -642,7 +769,7 @@ namespace PromotionExam.WebApi.Controllers
                     BulkQuestionId = row.BulkQuestionId,
                     ExcelRowNo = row.ExcelRowNo,
                     FileName = row.FileName,
-                    Reason = duplicates[row.BulkQuestionId]
+                    Reason = duplicates[row.BulkQuestionId] + DeleteDuplicateHint
                 });
             }
 
@@ -702,7 +829,7 @@ namespace PromotionExam.WebApi.Controllers
                 {
                     row.IsDuplicate = true;
                     messages[row.BulkQuestionId] =
-                        $"The same question with the same part, grade, department, concentration and location is already saved (row {match.ExcelRowNo} of '{match.FileName}'). Delete this row if it is not needed.";
+                        $"The same question with the same part, grade, department, concentration and location is already saved (row {match.ExcelRowNo} of '{match.FileName}').";
                 }
                 else
                 {

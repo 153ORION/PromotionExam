@@ -6,13 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Plus, CheckCircle, XCircle, Layers, BookOpen } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Layers, BookOpen, RefreshCw, X } from 'lucide-react';
 import { QuestionSet } from '@/types';
+import { SyncSetQuestionsDialog } from '@/components/questions/SyncSetQuestionsDialog';
 
 export const QuestionSetsPage: React.FC = () => {
   const [sets, setSets] = useState<QuestionSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [basicLookups, setBasicLookups] = useState<Record<string, any[]>>({});
+  // Bank questions matching each set but not in it yet, keyed by setId (null until loaded).
+  const [unsyncedCounts, setUnsyncedCounts] = useState<Record<number, number> | null>(null);
+  const [syncSet, setSyncSet] = useState<QuestionSet | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -24,7 +29,15 @@ export const QuestionSetsPage: React.FC = () => {
   const [concentrationId, setConcentrationId] = useState<number | undefined>();
   const [submitting, setSubmitting] = useState(false);
 
+  // Loaded on its own so a slow or failed count never holds up the list of sets.
+  const fetchUnsyncedCounts = () => {
+    api.get<Record<number, number>>('/questions/sets/unsynced-counts')
+      .then((res) => setUnsyncedCounts(res.data))
+      .catch((err) => console.error(err));
+  };
+
   const fetchData = async () => {
+    fetchUnsyncedCounts();
     setLoading(true);
     try {
       const [resSets, resLookups] = await Promise.all([
@@ -109,6 +122,15 @@ export const QuestionSetsPage: React.FC = () => {
         </Button>
       </div>
 
+      {notice && (
+        <div className="p-3 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm flex items-start gap-2">
+          <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" /> <span className="flex-1">{notice}</span>
+          <button onClick={() => setNotice(null)} aria-label="Dismiss" className="text-emerald-700 hover:text-emerald-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle>Available Question Sets</CardTitle>
@@ -125,6 +147,7 @@ export const QuestionSetsPage: React.FC = () => {
                 <TableHead>Grade</TableHead>
                 <TableHead>Concentration</TableHead>
                 <TableHead className="text-center">Questions</TableHead>
+                <TableHead className="text-center" title="Questions in the question bank that match this set but are not in it yet">Unsynced</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
               </TableRow>
@@ -132,13 +155,13 @@ export const QuestionSetsPage: React.FC = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-slate-500">
+                  <TableCell colSpan={10} className="text-center py-8 text-slate-500">
                     Loading question sets...
                   </TableCell>
                 </TableRow>
               ) : sets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-slate-500">
+                  <TableCell colSpan={10} className="text-center py-8 text-slate-500">
                     No question sets created yet.
                   </TableCell>
                 </TableRow>
@@ -156,6 +179,17 @@ export const QuestionSetsPage: React.FC = () => {
                         {s.questionCount}
                       </span>
                     </TableCell>
+                    <TableCell className="text-center">
+                      {unsyncedCounts == null ? (
+                        <span className="text-xs text-slate-400">…</span>
+                      ) : (unsyncedCounts[s.setId] ?? 0) > 0 ? (
+                        <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700">
+                          {unsyncedCounts[s.setId]}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">0</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {s.isActive ? (
                         <span className="inline-flex items-center text-xs text-emerald-700 font-medium">
@@ -169,6 +203,9 @@ export const QuestionSetsPage: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setSyncSet(s)}>
+                          <RefreshCw className="h-3.5 w-3.5 mr-1" /> Sync
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => handleOpenEdit(s)}>
                           Edit
                         </Button>
@@ -284,6 +321,14 @@ export const QuestionSetsPage: React.FC = () => {
           </DialogFooter>
         </form>
       </Dialog>
+
+      {syncSet && (
+        <SyncSetQuestionsDialog
+          set={syncSet}
+          onClose={() => setSyncSet(null)}
+          onSynced={(res) => { setNotice(res.message); fetchData(); }}
+        />
+      )}
     </div>
   );
 };

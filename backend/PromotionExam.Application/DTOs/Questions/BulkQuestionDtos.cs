@@ -194,6 +194,16 @@ namespace PromotionExam.Application.DTOs.Questions
         public string? RightAnswer { get; set; }
     }
 
+    // A question typed in on Question Bank > Questions. The lookup ids are optional: an id picked
+    // from Sys_Lookup is stored with the question and replaces the matching text with the item's text.
+    public class CreateBulkQuestionDto : UpdateBulkQuestionDto
+    {
+        public int? DepartmentId { get; set; }
+        public int? GradeId { get; set; }
+        public int? LocationId { get; set; }
+        public int? ConcentrationId { get; set; }
+    }
+
     public class UpdateBulkQuestionResultDto
     {
         public BulkQuestionRowDto Row { get; set; } = new();

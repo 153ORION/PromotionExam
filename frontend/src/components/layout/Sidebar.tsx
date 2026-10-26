@@ -15,8 +15,6 @@ import {
   FileQuestion,
   Award,
   Layers,
-  ListPlus,
-  Edit3,
   GitBranch,
   Clock,
   UserX,
@@ -130,8 +128,6 @@ export const Sidebar: React.FC = () => {
 
           {openSections.qbank && (
             <div className="mt-1 space-y-1 pl-5">
-              <SidebarItem to="/question-bank/mcq" icon={<ListPlus className="h-4 w-4" />} label="MCQ Questions" />
-              <SidebarItem to="/question-bank/narrative" icon={<Edit3 className="h-4 w-4" />} label="Narrative Questions" />
               {/* Generate Rubrics is opened from a button on this page */}
               <SidebarItem
                 to="/viewer/rubrics"

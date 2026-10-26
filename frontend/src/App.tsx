@@ -18,8 +18,6 @@ import { SystemConfigPage } from '@/pages/admin/SystemConfigPage';
 
 // Question Bank
 import { QuestionSetsPage } from '@/pages/questions/QuestionSetsPage';
-import { QuestionMCQPage } from '@/pages/questions/QuestionMCQPage';
-import { QuestionNarrativePage } from '@/pages/questions/QuestionNarrativePage';
 import { QuestionRubricGeneratePage } from '@/pages/questions/QuestionRubricGeneratePage';
 import { QuestionViewerPage } from '@/pages/questions/QuestionViewerPage';
 import { RubricsViewerPage } from '@/pages/questions/RubricsViewerPage';
@@ -83,14 +81,14 @@ export const App: React.FC = () => {
                 <Route element={<ProtectedRoute requireAdmin />}>
                   {/* Question Bank Module (management) */}
                   <Route path="/question-bank/sets" element={<QuestionSetsPage />} />
-                  <Route path="/question-bank/mcq" element={<QuestionMCQPage />} />
-                  <Route path="/question-bank/narrative" element={<QuestionNarrativePage />} />
                   <Route path="/question-bank/generate-rubrics" element={<QuestionRubricGeneratePage />} />
                   <Route path="/question-bank/upload" element={<QuestionBankUploadPage />} />
                   <Route path="/question-bank/fix" element={<FixQuestionsPage />} />
                   <Route path="/question-bank/mapping" element={<LookupMappingPage />} />
                   <Route path="/question-bank/uploaded" element={<UploadedQuestionsPage />} />
                   <Route path="/question-bank/disputed" element={<Navigate to="/question-bank/fix" replace />} />
+                  <Route path="/question-bank/mcq" element={<Navigate to="/question-bank/uploaded" replace />} />
+                  <Route path="/question-bank/narrative" element={<Navigate to="/question-bank/uploaded" replace />} />
 
                   {/* Marking Module (setup & assignment) */}
                   <Route path="/marking/flow-path" element={<FlowPathPage />} />

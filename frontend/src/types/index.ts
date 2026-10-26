@@ -586,6 +586,29 @@ export interface UpdateBulkQuestionResult {
   message: string;
 }
 
+// Question Sets > Sync: bank questions matching a set but not in it yet (GET /questions/sets/{id}/unsynced).
+export interface SetSyncCandidates {
+  setId: number;
+  setName: string;
+  // Matching questions left out because they still need fixing.
+  needsFixingCount: number;
+  questions: BulkQuestionRow[];
+}
+
+export interface SetSyncResult {
+  synced: number;
+  skipped: number;
+  message: string;
+}
+
+// A question typed in on Question Bank > Questions (POST /question-bank-upload/questions).
+export interface CreateBulkQuestionResult {
+  row: BulkQuestionRow;
+  // Warnings of the saved question (errors refuse the save).
+  issues: BulkQuestionIssue[];
+  message: string;
+}
+
 export interface ResolveDisputesResult {
   updated: number;
   failed: { bulkQuestionId: number; excelRowNo: number; fileName: string; reason: string }[];
