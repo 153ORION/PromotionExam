@@ -2,7 +2,7 @@ import React from 'react';
 import { TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpenText, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BulkQuestionRow } from '@/types';
 import { truncate } from '@/lib/bulkQuestionUtils';
@@ -74,6 +74,57 @@ export const QuestionCell: React.FC<{ row: BulkQuestionRow; children?: React.Rea
         </div>
       ) : null}
       {children}
+    </TableCell>
+  );
+};
+
+// Option number (1-4) of an MCQ's right answer, stored as the number or as the text of an option.
+const rightOptionNo = (answer: string | undefined, options: (string | undefined)[]): number | undefined => {
+  if (!answer) return undefined;
+  const no = Number(answer);
+  if (Number.isInteger(no) && no >= 1 && no <= options.length) return no;
+  const index = options.findIndex((o) => o && o.toLowerCase() === answer.toLowerCase());
+  return index >= 0 ? index + 1 : undefined;
+};
+
+// Question laid out as on the question paper (Question Viewer): number and question text, then the
+// MCQ options (A)–(D) with the right one ticked, or the descriptive question's reference model answer.
+// Option letters follow the option columns, so an empty Option2 leaves (B) out.
+export const QuestionPaperCell: React.FC<{ row: BulkQuestionRow; no: number; children?: React.ReactNode }> = ({ row, no, children }) => {
+  const options = [row.option1, row.option2, row.option3, row.option4];
+  const answerNo = rightOptionNo(row.rightAnswer, options);
+  return (
+    <TableCell className="align-top min-w-[360px]">
+      <div className="space-y-2.5">
+        <div className="flex items-start space-x-2">
+          <span className="font-bold text-sm text-slate-800">{no}.</span>
+          <span className="text-sm font-semibold text-slate-900 whitespace-pre-wrap">{row.question}</span>
+        </div>
+
+        {options.some(Boolean) ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-6 pt-1 text-xs">
+            {options.map((o, i) => o ? (
+              <div key={i} className="flex items-center space-x-2">
+                <span className={cn('font-bold', answerNo === i + 1 ? 'text-emerald-600' : 'text-slate-500')}>({String.fromCharCode(65 + i)})</span>
+                <span className={answerNo === i + 1 ? 'font-semibold text-emerald-700' : 'text-slate-800'}>{o}</span>
+                {answerNo === i + 1 && <span className="text-[10px] text-emerald-600 font-bold ml-1">✓</span>}
+              </div>
+            ) : null)}
+          </div>
+        ) : row.rightAnswer ? (
+          <div className="rounded-md bg-amber-50/60 border border-amber-100 py-3 pr-3 pl-6 space-y-1">
+            <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-700">
+              <BookOpenText className="h-3.5 w-3.5" />
+              <span>Reference Model Answer</span>
+            </div>
+            <p className="text-xs text-slate-700 whitespace-pre-wrap">{row.rightAnswer}</p>
+          </div>
+        ) : row.questionType === 'Descriptive' ? (
+          <p className="pl-6 text-xs italic text-slate-400">No reference model answer.</p>
+        ) : null}
+
+        {children}
+      </div>
     </TableCell>
   );
 };

@@ -51,6 +51,67 @@ namespace PromotionExam.WebApi.Controllers
             return Ok(counts);
         }
 
+        // Location/Department/Grade/Concentration combinations of the question bank that no Question Set has
+        // with exactly those ids (inactive sets count as existing), most ready questions first. A field whose
+        // text is empty in the bank stays null, so the suggested set has it as "Any". Rows whose text is not
+        // mapped to a lookup yet have no known combination and are only counted.
+        [HttpGet("suggestions")]
+        public async Task<IActionResult> GetSuggestions()
+        {
+            var bank = _context.BulkQuestionsExcel.AsNoTracking();
+            var groups = await bank
+                .Where(q =>
+                    (q.LocationId != null || string.IsNullOrEmpty(q.Location)) &&
+                    (q.DepartmentId != null || string.IsNullOrEmpty(q.Department)) &&
+                    (q.GradeId != null || string.IsNullOrEmpty(q.Grade)) &&
+                    (q.ConcentrationId != null || string.IsNullOrEmpty(q.JobConcentration)))
+                .GroupBy(q => new { q.LocationId, q.DepartmentId, q.GradeId, q.ConcentrationId })
+                .Select(g => new
+                {
+                    g.Key.LocationId, g.Key.DepartmentId, g.Key.GradeId, g.Key.ConcentrationId,
+                    Total = g.Count(),
+                    Ready = g.Count(q => !q.HasError && !q.IsTypeDisputed && !q.IsPartDisputed),
+                    Mcq = g.Count(q => !q.HasError && !q.IsTypeDisputed && !q.IsPartDisputed && q.QuestionType == BulkQuestionExcelParser.TypeMcq)
+                })
+                .ToListAsync();
+            int unmapped = await bank.CountAsync() - groups.Sum(g => g.Total);
+
+            var existing = (await _context.QuestionSets.AsNoTracking()
+                    .Select(s => new { s.LocationId, s.DepartmentId, s.GradeId, s.ConcentrationId })
+                    .ToListAsync())
+                .Select(s => (s.LocationId, s.DepartmentId, s.GradeId, s.ConcentrationId))
+                .ToHashSet();
+            var lookups = await _context.SysLookups.AsNoTracking().ToDictionaryAsync(l => l.LookupId, l => l.LookupText);
+            string? Name(int? id) => id.HasValue && lookups.TryGetValue(id.Value, out var text) ? text : null;
+
+            // A combination with every field empty is left out: a set with all fields "Any" would take every question.
+            var suggestions = groups
+                .Where(g => g.LocationId != null || g.DepartmentId != null || g.GradeId != null || g.ConcentrationId != null)
+                .Where(g => !existing.Contains((g.LocationId, g.DepartmentId, g.GradeId, g.ConcentrationId)))
+                .Select(g =>
+                {
+                    var s = new SetSuggestionDto
+                    {
+                        LocationId = g.LocationId, LocationName = Name(g.LocationId),
+                        DepartmentId = g.DepartmentId, DepartmentName = Name(g.DepartmentId),
+                        GradeId = g.GradeId, GradeName = Name(g.GradeId),
+                        ConcentrationId = g.ConcentrationId, ConcentrationName = Name(g.ConcentrationId),
+                        QuestionCount = g.Ready,
+                        McqCount = g.Mcq,
+                        DescriptiveCount = g.Ready - g.Mcq,
+                        NeedsFixingCount = g.Total - g.Ready
+                    };
+                    // e.g. "Mechanical Maintenance Plant E-1"
+                    var parts = new[] { s.ConcentrationName, s.DepartmentName, s.LocationName, s.GradeName }.Where(p => !string.IsNullOrWhiteSpace(p));
+                    s.SuggestedName = parts.Any() ? string.Join(" ", parts) : "New Question Set";
+                    return s;
+                })
+                .OrderByDescending(s => s.QuestionCount).ThenByDescending(s => s.NeedsFixingCount).ThenBy(s => s.SuggestedName)
+                .ToList();
+
+            return Ok(new SetSuggestionsDto { Suggestions = suggestions, UnmappedCount = unmapped });
+        }
+
         [HttpGet("{setId:int}/unsynced")]
         public async Task<IActionResult> GetUnsynced(int setId)
         {

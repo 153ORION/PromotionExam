@@ -601,6 +601,31 @@ export interface SetSyncResult {
   message: string;
 }
 
+// Question Sets: a Location/Department/Grade/Concentration combination of the question bank that no set
+// has yet (GET /questions/sets/suggestions). A missing id means the bank leaves that field empty ("Any").
+export interface SetSuggestion {
+  locationId?: number;
+  locationName?: string;
+  departmentId?: number;
+  departmentName?: string;
+  gradeId?: number;
+  gradeName?: string;
+  concentrationId?: number;
+  concentrationName?: string;
+  suggestedName: string;
+  // Valid questions, ready to sync once the set exists.
+  questionCount: number;
+  mcqCount: number;
+  descriptiveCount: number;
+  needsFixingCount: number;
+}
+
+export interface SetSuggestions {
+  suggestions: SetSuggestion[];
+  // Bank questions left out because a Department/Grade/Location/Concentration is not mapped yet.
+  unmappedCount: number;
+}
+
 // A question typed in on Question Bank > Questions (POST /question-bank-upload/questions).
 export interface CreateBulkQuestionResult {
   row: BulkQuestionRow;

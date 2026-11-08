@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '@/services/api';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
@@ -6,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Plus, CheckCircle, XCircle, Layers, BookOpen, RefreshCw, X } from 'lucide-react';
-import { QuestionSet } from '@/types';
+import { Plus, CheckCircle, XCircle, Layers, BookOpen, RefreshCw, X, Lightbulb, AlertTriangle } from 'lucide-react';
+import { QuestionSet, SetSuggestion, SetSuggestions } from '@/types';
 import { SyncSetQuestionsDialog } from '@/components/questions/SyncSetQuestionsDialog';
+import { SetQuestionsDialog } from '@/components/questions/SetQuestionsDialog';
 
 export const QuestionSetsPage: React.FC = () => {
   const [sets, setSets] = useState<QuestionSet[]>([]);
@@ -16,7 +18,10 @@ export const QuestionSetsPage: React.FC = () => {
   const [basicLookups, setBasicLookups] = useState<Record<string, any[]>>({});
   // Bank questions matching each set but not in it yet, keyed by setId (null until loaded).
   const [unsyncedCounts, setUnsyncedCounts] = useState<Record<number, number> | null>(null);
+  // Bank combinations that no set has yet (null until loaded).
+  const [suggestions, setSuggestions] = useState<SetSuggestions | null>(null);
   const [syncSet, setSyncSet] = useState<QuestionSet | null>(null);
+  const [questionsSet, setQuestionsSet] = useState<QuestionSet | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   // Dialog state
@@ -36,8 +41,15 @@ export const QuestionSetsPage: React.FC = () => {
       .catch((err) => console.error(err));
   };
 
+  const fetchSuggestions = () => {
+    api.get<SetSuggestions>('/questions/sets/suggestions')
+      .then((res) => setSuggestions(res.data))
+      .catch((err) => console.error(err));
+  };
+
   const fetchData = async () => {
     fetchUnsyncedCounts();
+    fetchSuggestions();
     setLoading(true);
     try {
       const [resSets, resLookups] = await Promise.all([
@@ -76,6 +88,21 @@ export const QuestionSetsPage: React.FC = () => {
     setConcentrationId(s.concentrationId);
     setDialogOpen(true);
   };
+
+  // A new set filled in from a suggested combination; the name stays editable.
+  const handleOpenSuggestion = (s: SetSuggestion) => {
+    setEditingSet(null);
+    setSetName(s.suggestedName);
+    setDepartmentId(s.departmentId ?? undefined);
+    setGradeId(s.gradeId ?? undefined);
+    setLocationId(s.locationId ?? undefined);
+    setConcentrationId(s.concentrationId ?? undefined);
+    setDialogOpen(true);
+  };
+
+  // A suggestion field: its lookup name, the id if the lookup is gone, or "Any" when the bank leaves it empty.
+  const suggestionField = (name?: string, id?: number) =>
+    name || (id ? `#${id}` : <span className="text-slate-400">Any</span>);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,6 +156,81 @@ export const QuestionSetsPage: React.FC = () => {
             <X className="h-4 w-4" />
           </button>
         </div>
+      )}
+
+      {suggestions && (suggestions.suggestions.length > 0 || suggestions.unmappedCount > 0) && (
+        <Card className="border-amber-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-amber-500" /> Suggested Question Sets
+            </CardTitle>
+            <CardDescription>
+              Location, Department, Grade and Concentration combinations in the question bank that no question set has yet.
+              Create the set, then use Sync to add its questions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {suggestions.unmappedCount > 0 && (
+              <div className="mx-6 mb-3 p-3 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-sm flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  {suggestions.unmappedCount} question(s) are not counted because their Location, Department, Grade or
+                  Concentration is not mapped yet.{' '}
+                  <Link to="/question-bank/mapping" className="font-medium underline">Go to Lookup Mapping</Link>
+                </span>
+              </div>
+            )}
+            {suggestions.suggestions.length > 0 && (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Suggested Name</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Grade</TableHead>
+                    <TableHead>Concentration</TableHead>
+                    <TableHead className="text-center" title="Valid questions that can be synced once the set exists">Questions</TableHead>
+                    <TableHead className="text-center" title="Questions with errors or a disputed Type/Part, to fix in Fix Questions first">Needs Fixing</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {suggestions.suggestions.map((s) => (
+                    <TableRow key={`${s.locationId}-${s.departmentId}-${s.gradeId}-${s.concentrationId}`}>
+                      <TableCell className="font-semibold text-slate-900">{s.suggestedName}</TableCell>
+                      <TableCell className="text-sm text-slate-700">{suggestionField(s.locationName, s.locationId)}</TableCell>
+                      <TableCell className="text-sm text-slate-700">{suggestionField(s.departmentName, s.departmentId)}</TableCell>
+                      <TableCell className="text-sm text-slate-700">{suggestionField(s.gradeName, s.gradeId)}</TableCell>
+                      <TableCell className="text-sm text-slate-700">{suggestionField(s.concentrationName, s.concentrationId)}</TableCell>
+                      <TableCell className="text-center whitespace-nowrap">
+                        <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
+                          {s.questionCount}
+                        </span>
+                        <div className="mt-1 text-[11px] text-slate-500">
+                          {s.mcqCount} MCQ · {s.descriptiveCount} Descriptive
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {s.needsFixingCount > 0 ? (
+                          <Link to="/question-bank/fix" className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700 hover:bg-amber-100">
+                            {s.needsFixingCount}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-slate-400">0</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button size="sm" variant="outline" onClick={() => handleOpenSuggestion(s)}>
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Create Set
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <Card className="border-slate-200 shadow-sm">
@@ -203,6 +305,9 @@ export const QuestionSetsPage: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setQuestionsSet(s)}>
+                          <BookOpen className="h-3.5 w-3.5 mr-1" /> Questions
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => setSyncSet(s)}>
                           <RefreshCw className="h-3.5 w-3.5 mr-1" /> Sync
                         </Button>
@@ -328,6 +433,10 @@ export const QuestionSetsPage: React.FC = () => {
           onClose={() => setSyncSet(null)}
           onSynced={(res) => { setNotice(res.message); fetchData(); }}
         />
+      )}
+
+      {questionsSet && (
+        <SetQuestionsDialog set={questionsSet} onClose={() => setQuestionsSet(null)} />
       )}
     </div>
   );

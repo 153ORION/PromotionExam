@@ -4,24 +4,20 @@ import { useAuth } from '@/context/AuthContext';
 import { useSystemConfig } from '@/context/SystemConfigContext';
 import {
   LayoutDashboard,
-  Eye,
   HelpCircle,
   CheckSquare,
   Users,
   Settings,
   ChevronDown,
   ChevronRight,
-  Search,
   FileQuestion,
   Award,
   Layers,
   GitBranch,
   Clock,
-  UserX,
   UserPlus,
   ShieldCheck,
   FileText,
-  Activity,
   Building2,
   ListChecks,
   Database
@@ -35,7 +31,6 @@ export const Sidebar: React.FC = () => {
 
   // All menu sections collapsed by default; expands when user clicks
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    viewer: false,
     qbank: false,
     marking: false,
     hr: false,
@@ -63,7 +58,6 @@ export const Sidebar: React.FC = () => {
               <Award className="h-3.5 w-3.5 text-rose-400" />
               <span>Examiner Panel</span>
             </div>
-            <SidebarItem to="/viewer/search-examinee" icon={<Search className="h-4 w-4" />} label="Examinee Viewer" />
             <SidebarItem to="/question-bank/viewer" icon={<FileQuestion className="h-4 w-4" />} label="Question Viewer" />
             <SidebarItem to="/viewer/rubrics" icon={<ListChecks className="h-4 w-4" />} label="Rubrics Viewer" />
             <SidebarItem to="/marking/narrative-score" icon={<Award className="h-4 w-4" />} label="Narrative Score" />
@@ -85,30 +79,6 @@ export const Sidebar: React.FC = () => {
           <LayoutDashboard className="h-4 w-4" />
           <span>Dashboard</span>
         </NavLink>
-
-        {/* Section: Viewer */}
-        <div>
-          <button
-            onClick={() => toggleSection('viewer')}
-            className={cn(
-              "flex w-full items-center justify-between px-3 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors cursor-pointer",
-              openSections.viewer ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
-            )}
-          >
-            <div className="flex items-center space-x-2">
-              <Eye className="h-3.5 w-3.5 text-amber-400" />
-              <span>Viewer</span>
-            </div>
-            {openSections.viewer ? <ChevronDown className="h-3.5 w-3.5 text-slate-300" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-500" />}
-          </button>
-
-          {openSections.viewer && (
-            <div className="mt-1 space-y-1 pl-5">
-              <SidebarItem to="/viewer/search-examinee" icon={<Search className="h-4 w-4" />} label="Examinee Viewer" />
-              <SidebarItem to="/question-bank/viewer" icon={<FileQuestion className="h-4 w-4" />} label="Question Viewer" />
-            </div>
-          )}
-        </div>
 
         {/* Section: Question Bank */}
         <div>
@@ -166,6 +136,9 @@ export const Sidebar: React.FC = () => {
             <div className="mt-1 space-y-1 pl-5">
               <SidebarItem to="/marking/flow-path" icon={<GitBranch className="h-4 w-4" />} label="Flow Path" />
               <SidebarItem to="/marking/narrative-score" icon={<Award className="h-4 w-4" />} label="Narrative Score" />
+              {isAdmin && (
+                <SidebarItem to="/marking/answer-sheet" icon={<FileText className="h-4 w-4" />} label="Answer Sheet" />
+              )}
             </div>
           )}
         </div>
@@ -191,7 +164,6 @@ export const Sidebar: React.FC = () => {
               <div className="mt-1 space-y-1 pl-5">
                 <SidebarItem to="/hr/batches" icon={<FileText className="h-4 w-4" />} label="Exam Batches" />
                 <SidebarItem to="/hr/registration" icon={<UserPlus className="h-4 w-4" />} label="Registration" />
-                <SidebarItem to="/hr/unregistration" icon={<UserX className="h-4 w-4" />} label="Unregistration" />
                 <SidebarItem to="/hr/time-editor" icon={<Clock className="h-4 w-4" />} label="Time Editor" />
               </div>
             )}
@@ -220,7 +192,6 @@ export const Sidebar: React.FC = () => {
                 {/* Lookup Types is opened from a button on the Lookups page */}
                 <SidebarItem to="/admin/lookups" icon={<Layers className="h-4 w-4" />} label="Lookups" alsoActiveOn={['/admin/lookup-types']} />
                 <SidebarItem to="/admin/users" icon={<ShieldCheck className="h-4 w-4" />} label="User Management" />
-                <SidebarItem to="/admin/activity-logs" icon={<Activity className="h-4 w-4 text-blue-400" />} label="User Activity Audit" />
                 <SidebarItem to="/admin/system-config" icon={<Building2 className="h-4 w-4 text-emerald-400" />} label="System Settings" />
               </div>
             )}

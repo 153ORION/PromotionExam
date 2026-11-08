@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import {
   BULK_QUESTION_TYPES, BulkQuestionRow, BulkQuestionRowPage, LookupMappingField, LookupMappingFieldData,
 } from '@/types';
-import { Pager, QuestionCell, TypePartBadges } from '@/components/questions/BulkQuestionParts';
+import { Pager, QuestionPaperCell, TypePartBadges } from '@/components/questions/BulkQuestionParts';
 import { CreateQuestionDialog } from '@/components/questions/CreateQuestionDialog';
 import { errorMessage } from '@/lib/bulkQuestionUtils';
 
@@ -203,7 +203,7 @@ export const UploadedQuestionsPage: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows?.items.map((row) => (
+                {rows?.items.map((row, idx) => (
                   <TableRow key={row.bulkQuestionId} className={cn(row.hasError && 'bg-rose-50/40')}>
                     <TableCell className="align-top">
                       <TypePartBadges row={row} />
@@ -235,13 +235,13 @@ export const UploadedQuestionsPage: React.FC = () => {
                         </dl>
                       </TableCell>
                     ))}
-                    <QuestionCell row={row}>
+                    <QuestionPaperCell row={row} no={(rows.page - 1) * rows.pageSize + idx + 1}>
                       {row.errors && row.errors.length > 0 && (
                         <div className="mt-2 space-y-0.5 text-xs text-rose-700">
-                          {row.errors.map((e, idx) => <div key={idx}>Error: {e}</div>)}
+                          {row.errors.map((e, i) => <div key={i}>Error: {e}</div>)}
                         </div>
                       )}
-                    </QuestionCell>
+                    </QuestionPaperCell>
                   </TableRow>
                 ))}
                 {rows && rows.items.length === 0 && !loading && (

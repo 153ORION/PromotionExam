@@ -13,7 +13,6 @@ import { UserManagementPage } from '@/pages/admin/UserManagementPage';
 // Admin / Lookups
 import { LookupTypePage } from '@/pages/admin/LookupTypePage';
 import { LookupPage } from '@/pages/admin/LookupPage';
-import { UserActivityPage } from '@/pages/admin/UserActivityPage';
 import { SystemConfigPage } from '@/pages/admin/SystemConfigPage';
 
 // Question Bank
@@ -29,14 +28,13 @@ import { UploadedQuestionsPage } from '@/pages/questions/UploadedQuestionsPage';
 // HR Panel & Marking
 import { ExamBatchesPage } from '@/pages/hr/ExamBatchesPage';
 import { RegistrationPage } from '@/pages/hr/RegistrationPage';
-import { UnregistrationPage } from '@/pages/hr/UnregistrationPage';
 import { TimeEditorPage } from '@/pages/hr/TimeEditorPage';
 import { FlowPathPage } from '@/pages/marking/FlowPathPage';
 import { AssignExaminerPage } from '@/pages/marking/AssignExaminerPage';
 import { NarrativeScorePage } from '@/pages/marking/NarrativeScorePage';
+import { AnswerSheetPage } from '@/pages/marking/AnswerSheetPage';
 
 // Viewer & Results
-import { SearchExamineePage } from '@/pages/viewer/SearchExamineePage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { ExaminerDashboardPage } from '@/pages/dashboard/ExaminerDashboardPage';
 
@@ -72,9 +70,13 @@ export const App: React.FC = () => {
                 <Route path="/profile" element={<ProfilePage />} />
 
                 {/* Viewer Module */}
-                <Route path="/viewer/search-examinee" element={<SearchExamineePage />} />
                 <Route path="/question-bank/viewer" element={<QuestionViewerPage />} />
                 <Route path="/viewer/rubrics" element={<RubricsViewerPage />} />
+
+                {/* Removed pages: old links and bookmarks go to the dashboard. */}
+                <Route path="/viewer/search-examinee" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/hr/unregistration" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/admin/activity-logs" element={<Navigate to="/dashboard" replace />} />
 
                 {/* Admin-only pages: question bank management, marking setup,
                     HR panel and admin module. Examiners are redirected away. */}
@@ -94,18 +96,17 @@ export const App: React.FC = () => {
                   <Route path="/marking/flow-path" element={<FlowPathPage />} />
                   <Route path="/marking/flow-path/assign" element={<AssignExaminerPage />} />
                   <Route path="/marking/assign-examiner" element={<AssignExaminerPage />} />
+                  <Route path="/marking/answer-sheet" element={<AnswerSheetPage />} />
 
                   {/* HR Panel Module */}
                   <Route path="/hr/batches" element={<ExamBatchesPage />} />
                   <Route path="/hr/registration" element={<RegistrationPage />} />
-                  <Route path="/hr/unregistration" element={<UnregistrationPage />} />
                   <Route path="/hr/time-editor" element={<TimeEditorPage />} />
 
                   {/* Admin Module */}
                   <Route path="/admin/lookup-types" element={<LookupTypePage />} />
                   <Route path="/admin/lookups" element={<LookupPage />} />
                   <Route path="/admin/users" element={<UserManagementPage />} />
-                  <Route path="/admin/activity-logs" element={<UserActivityPage />} />
                   <Route path="/admin/system-config" element={<SystemConfigPage />} />
                 </Route>
 

@@ -57,6 +57,34 @@ namespace PromotionExam.Application.DTOs.Questions
         public string Message { get; set; } = string.Empty;
     }
 
+    // A Location/Department/Grade/Concentration combination of the question bank that no Question Set has.
+    // A null id means the bank rows leave that field empty, so the set would have it as "Any".
+    public class SetSuggestionDto
+    {
+        public int? LocationId { get; set; }
+        public string? LocationName { get; set; }
+        public int? DepartmentId { get; set; }
+        public string? DepartmentName { get; set; }
+        public int? GradeId { get; set; }
+        public string? GradeName { get; set; }
+        public int? ConcentrationId { get; set; }
+        public string? ConcentrationName { get; set; }
+        public string SuggestedName { get; set; } = string.Empty;
+        // Valid questions, ready to sync once the set exists.
+        public int QuestionCount { get; set; }
+        public int McqCount { get; set; }
+        public int DescriptiveCount { get; set; }
+        // Questions of the combination that still need fixing (errors or disputed Type/Part).
+        public int NeedsFixingCount { get; set; }
+    }
+
+    public class SetSuggestionsDto
+    {
+        public List<SetSuggestionDto> Suggestions { get; set; } = new();
+        // Bank questions left out because a Department/Grade/Location/Concentration text is not mapped yet.
+        public int UnmappedCount { get; set; }
+    }
+
     public class QuestionBankDto
     {
         public int QuestionId { get; set; }

@@ -13,7 +13,6 @@ const ROUTE_TITLES: Array<{ path: string; title: string }> = [
   { path: '/profile', title: 'Profile' },
 
   // Viewer
-  { path: '/viewer/search-examinee', title: 'Examinee Viewer' },
   { path: '/viewer/rubrics', title: 'Rubrics Viewer' },
 
   // Question Bank
@@ -28,18 +27,17 @@ const ROUTE_TITLES: Array<{ path: string; title: string }> = [
   // Marking
   { path: '/marking/assign-examiner', title: 'Assign Examiner' },
   { path: '/marking/narrative-score', title: 'Narrative Score' },
+  { path: '/marking/answer-sheet', title: 'Answer Sheet' },
   { path: '/marking/flow-path/assign', title: 'Assign Examiner' },
   { path: '/marking/flow-path', title: 'Flow Path' },
 
   // HR Panel
   { path: '/hr/time-editor', title: 'Time Editor' },
   { path: '/hr/registration', title: 'Registration' },
-  { path: '/hr/unregistration', title: 'Unregistration' },
   { path: '/hr/batches', title: 'Exam Batches' },
 
   // Admin
   { path: '/admin/system-config', title: 'System Settings' },
-  { path: '/admin/activity-logs', title: 'User Activity Audit' },
   { path: '/admin/users', title: 'User Management' },
   { path: '/admin/lookups', title: 'Lookups' },
   { path: '/admin/lookup-types', title: 'Lookup Types' },

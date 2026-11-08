@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useSystemConfig } from '@/context/SystemConfigContext';
 import { CompanyLogo } from '@/components/ui/CompanyLogo';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, FileQuestion, ListChecks, Award, ArrowRight, Users, UserCheck, HelpCircle } from 'lucide-react';
+import { FileQuestion, ListChecks, Award, ArrowRight, Users, UserCheck, HelpCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DashboardStats } from '@/types';
 
@@ -102,13 +102,7 @@ export const ExaminerDashboardPage: React.FC = () => {
       {/* Quick Navigation Cards */}
       <div>
         <h3 className="text-lg font-bold text-slate-900 mb-4">Quick Navigation Modules</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          <QuickCard
-            title="Examinee Viewer"
-            description="Query and lookup registered candidate test records, scores, and answer papers."
-            to="/viewer/search-examinee"
-            icon={<Search className="h-6 w-6 text-rose-600" />}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <QuickCard
             title="Question Viewer"
             description="Preview formatted question sets of the assigned examination for review or printing."
